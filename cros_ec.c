@@ -200,7 +200,7 @@ static int ec_check_features(int feature)
 	if (rc < 0)
 		return rc;
 
-	return !!(r.flags[feature / 32] & EC_FEATURE_MASK_0(feature));
+	return !!(r.flags[feature / 32] & (1 << (feature % 32)));
 }
 
 /**
