@@ -1089,6 +1089,12 @@ enum ec_feature_code {
 	EC_FEATURE_RWSIG = 30,
 	/* EC has device events support */
 	EC_FEATURE_DEVICE_EVENT = 31,
+	/* EC supports the unified wake masks for LPC/eSPI systems */
+	EC_FEATURE_UNIFIED_WAKE_MASKS = 32,
+	/* EC supports 64-bit host events */
+	EC_FEATURE_HOST_EVENT64 = 33,
+	/* EC runs code in RAM (not in place, a.k.a. XIP) */
+	EC_FEATURE_EXEC_IN_RAM = 34,
 };
 
 #define EC_FEATURE_MASK_0(event_code) (1UL << (event_code % 32))
