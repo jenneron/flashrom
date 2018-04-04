@@ -186,17 +186,24 @@ static int cros_ec_get_region_info(enum ec_flash_region region,
  *
  * @param feature	feature code
  * @return < 0 if error, 0 not supported, > 0 supported
+ *
+ * NOTE: Once it successfully runs, the feature bits are cached. So, if you
+ *       want to query a feature that can be different per copy, you need to
+ *       cache features per image copy.
  */
 static int ec_check_features(int feature)
 {
-	struct ec_response_get_features r;
-	int rc;
+	static struct ec_response_get_features r;
+	int rc = 0;
 
 	if (feature < 0 || feature >= sizeof(r.flags) * 8)
 		return -1;
 
-	rc = cros_ec_priv->ec_command(EC_CMD_GET_FEATURES,
-				0, NULL, 0, &r, sizeof(r));
+	/* We don't cache return code. We retry regardless the return code. */
+	if (r.flags[0] == 0)
+		rc = cros_ec_priv->ec_command(EC_CMD_GET_FEATURES,
+					      0, NULL, 0, &r, sizeof(r));
+
 	if (rc < 0)
 		return rc;
 
