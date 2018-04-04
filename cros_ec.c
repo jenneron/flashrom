@@ -133,7 +133,7 @@ static void cros_ec_invalidate_copy(unsigned int addr, unsigned int len)
 		if ((addr >= fw->offset && (addr < fw->offset + fw->size)) ||
 		    (fw->offset >= addr && (fw->offset < addr + len))) {
 			msg_pdbg("Mark firmware [%s] as old.\n",
-			         sections[i]);
+				 sections[i]);
 			fw->flags = 0;  // mark as old
 		}
 	}
@@ -475,8 +475,13 @@ int cros_ec_prepare(uint8_t *image, int size) {
 		}
 	}
 
-	/* Warning: before update, we jump the EC to RO copy. If you want to
-	 *          change this behavior, please also check the cros_ec_finish().
+	if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) > 0) {
+		msg_pwarn("Skip jumping to RO\n");
+		return 0;
+	}
+	/* Warning: before update, we jump the EC to RO copy. If you
+	 * want to change this behavior, please also check the
+	 * cros_ec_finish().
 	 */
 	return cros_ec_jump_copy(EC_IMAGE_RO);
 }
@@ -491,13 +496,23 @@ int cros_ec_prepare(uint8_t *image, int size) {
 int cros_ec_need_2nd_pass(void) {
 	if (!(cros_ec_priv && cros_ec_priv->detected)) return 0;
 
-	if (need_2nd_pass) {
-		if (cros_ec_jump_copy(EC_IMAGE_UNKNOWN)) {
-			return -1;
-		}
-	}
+	if (!need_2nd_pass)
+		return 0;
 
-	return need_2nd_pass;
+	if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) > 0)
+		/* EC_RES_ACCESS_DENIED is returned when the block is either
+		 * protected or unsafe. Thus, theoretically, we shouldn't reach
+		 * here because everywhere is safe for EXEC_IN_RAM chips and
+		 * WP is disabled before erase/write cycle starts.
+		 * We can still let the 2nd pass run (and it will probably
+		 * fail again).
+		 */
+		return 1;
+
+	if (cros_ec_jump_copy(EC_IMAGE_UNKNOWN))
+		return -1;
+
+	return 1;
 }
 
 
@@ -567,6 +582,10 @@ int cros_ec_read(struct flashctx *flash, uint8_t *readarr,
 /*
  * returns 0 to indicate area does not overlap current EC image
  * returns 1 to indicate area overlaps current EC image or error
+ *
+ * We can't get rid of this. The ECs should know what region is safe to erase
+ * or write. We should let them decide (and return EC_RES_ACCESS_DENIED).
+ * Not all existing EC firmware can do so.
  */
 static int in_current_image(unsigned int addr, unsigned int len)
 {
@@ -593,7 +612,8 @@ int cros_ec_block_erase(struct flashctx *flash,
 	uint32_t mask;
 	int rc, cmd_version, timeout=0;
 
-	if (in_current_image(blockaddr, len)) {
+	if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) <= 0 &&
+			in_current_image(blockaddr, len)) {
 		cros_ec_invalidate_copy(blockaddr, len);
 		need_2nd_pass = 1;
 		return ACCESS_DENIED;
@@ -708,7 +728,8 @@ int cros_ec_write(struct flashctx *flash, const uint8_t *buf, unsigned int addr,
 		p.offset = addr + i;
 		p.size = written;
 
-		if (in_current_image(p.offset, p.size)) {
+		if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) <= 0 &&
+				in_current_image(p.offset, p.size)) {
 			cros_ec_invalidate_copy(addr, nbytes);
 			need_2nd_pass = 1;
 			return ACCESS_DENIED;
