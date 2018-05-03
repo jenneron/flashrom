@@ -1911,39 +1911,47 @@ int get_target_bus_from_chipset(enum chipbustype *bus)
 	for (i = 0; chipset_enables[i].vendor_name != NULL; i++) {
 		dev = pci_dev_find(chipset_enables[i].vendor_id,
 		                   chipset_enables[i].device_id);
-		if (dev) {
-			if (chipset_enables[i].doit == enable_flash_pch5 ||
-			    chipset_enables[i].doit == enable_flash_pch6
-			    /* TODO: add once enable_flash_ich_dc_spi(..., \
-			               CHIPSET_7_SERIES_PANTHER_POINT); */) {
-				is_new_ich = 1;
-			} else if ((chipset_enables[i].doit ==
-				    enable_flash_lynxpoint_lp) ||
-				   (chipset_enables[i].doit ==
-				    enable_flash_wildcatpoint)) {
-				/* The new LP chipsets have 1 bit BBS */
-				is_new_ich = 2;
-			} else if (chipset_enables[i].doit ==
-				   enable_flash_baytrail) {
-				/* Baytrail has 2 bit BBS at different offset */
-				is_new_ich = 3;
-			} else if (chipset_enables[i].doit ==
-				   enable_flash_sunrisepoint) {
-				/* Sunrise point has 1 bit BBS
-				 * in GCS register */
-				is_new_ich = 4;
-			} else if (chipset_enables[i].doit ==
-				   enable_flash_apl) {
-				/* APL/GLK has 1 bit BBS in GCS register and
-				 * needs to perform mmio read/write instead of
-				 * pci read/write ops.
-				 */
-				is_new_ich = 5;
-			}
+		if (dev)
 			break;
-		}
 	}
 	if (!dev) return -3;  /* unknown pci dev */
+
+	if (chipset_enables[i].doit == enable_flash_sb600) {
+		/* The SB600 supported chipsets use SPI */
+		*bus = BUS_SPI;
+		ret = 0;
+	}
+
+	/*
+	 * All the below code assumes that an Intel chip is present.
+	 * Return if not Intel.
+	 */
+	if (dev->vendor_id != 0x8086)
+		return ret;
+
+	if (chipset_enables[i].doit == enable_flash_pch5 ||
+	    chipset_enables[i].doit == enable_flash_pch6
+	    /* TODO: add once enable_flash_ich_dc_spi(..., \
+	               CHIPSET_7_SERIES_PANTHER_POINT); */) {
+		is_new_ich = 1;
+	} else if ((chipset_enables[i].doit ==
+		    enable_flash_lynxpoint_lp) ||
+		   (chipset_enables[i].doit ==
+		    enable_flash_wildcatpoint)) {
+		/* The new LP chipsets have 1 bit BBS */
+		is_new_ich = 2;
+	} else if (chipset_enables[i].doit ==
+		   enable_flash_baytrail) {
+		/* Baytrail has 2 bit BBS at different offset */
+		is_new_ich = 3;
+	} else if ((chipset_enables[i].doit ==
+		   enable_flash_sunrisepoint) ||
+		   (chipset_enables[i].doit ==
+		    enable_flash_apl)) {
+		/* Sunrise point has 1 bit BBS
+		 * in GCS register */
+		is_new_ich = 4;
+	}
 
 	switch (is_new_ich) {
 	case 4:
