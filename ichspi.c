@@ -223,7 +223,6 @@
 /* ICH SPI configuration lock-down. May be set during chipset enabling. */
 static int ichspi_lock = 0;
 
-enum ich_chipset ich_generation = CHIPSET_ICH_UNKNOWN;
 uint32_t ichspi_bbar = 0;
 
 static void *ich_spibar = NULL;
@@ -1194,11 +1193,15 @@ static int ich_spi_send_command(const struct flashctx *flash, unsigned int write
 		if (!ichspi_lock)
 			opcode_index = reprogram_opcode_on_the_fly(cmd, writecnt, readcnt);
 		if (opcode_index == -1) {
-			msg_pdbg("Invalid OPCODE 0x%02x, will not execute.\n",
-				 cmd);
+			if (!ich_dry_run)
+				msg_pdbg("Invalid OPCODE 0x%02x, will not execute.\n",
+					 cmd);
 			return SPI_INVALID_OPCODE;
 		}
 	}
+
+	if (ich_dry_run)
+		return 0;
 
 	opcode = &(curopcodes->opcode[opcode_index]);
 
@@ -1433,6 +1436,9 @@ int ich_hwseq_block_erase(struct flashctx *flash,
 	uint32_t erase_block;
 	uint16_t hsfc;
 	uint32_t timeout = 5000 * 1000; /* 5 s for max 64 kB */
+
+	if (ich_dry_run)
+		return 0;
 
 	erase_block = ich_hwseq_get_erase_block_size(addr);
 	if (len != erase_block) {
@@ -1707,6 +1713,9 @@ int pch100_hwseq_block_erase(struct flashctx *flash,
 	uint32_t timeout = 5000 * 1000; /* 5 s for max 64 kB */
 	int result;
 	int op_type;
+
+	if (ich_dry_run)
+		return 0;
 
 	erase_block = pch100_hwseq_get_erase_block_size(addr);
 	if (len != erase_block) {
@@ -2129,6 +2138,7 @@ int ich_init_spi(struct pci_dev *dev, uint32_t base, void *rcrb,
 	} ich_spi_mode = ich_auto;
 
 	ich_generation = ich_gen;
+	msg_pdbg("ich_ generation %d\n", ich_generation);
 
 	switch (ich_generation) {
 	case CHIPSET_BAYTRAIL:

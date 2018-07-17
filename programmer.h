@@ -107,6 +107,14 @@ struct programmer_alias {
 extern struct programmer_alias *alias;
 extern struct programmer_alias aliases[];
 
+/*
+ * This function returns 'true' if current flashrom invocation is programming
+ * the EC.
+ */
+static inline int programming_ec(void) {
+	return alias && (alias->type == ALIAS_EC);
+}
+
 struct programmer_entry {
 	const char *vendor;
 	const char *name;
@@ -610,7 +618,16 @@ enum ich_chipset {
  * device. When running on non-intel platforms default value of
  * CHIPSET_ICH_UNKNOWN is used.
 */
-enum ich_chipset ich_generation;
+extern enum ich_chipset ich_generation;
+
+/*
+ * This global variable is set to indicate that the invoked flash programming
+ * command should not be executed, but just verified for validity.
+ *
+ * This is useful when one needs to determine if a certain flash erase command
+ * supported by the chip is allowed by the Intel controller on the device.
+ */
+extern int ich_dry_run;
 extern uint32_t ichspi_bbar;
 int ich_init_spi(struct pci_dev *dev, uint32_t base, void *rcrb,
 		 enum ich_chipset ich_generation);

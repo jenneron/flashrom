@@ -21,6 +21,14 @@
 #include "flash.h"
 #include "programmer.h"
 
+/*
+ * The following two variables are used in the code even if the ich support is
+ * not compiled in, this is why they are exported through programmer.h and
+ * defined here.
+ */
+enum ich_chipset ich_generation = CHIPSET_ICH_UNKNOWN;
+int ich_dry_run;
+
 static const struct par_master par_master_none = {
 		.chip_readb		= noop_chip_readb,
 		.chip_readw		= fallback_chip_readw,

@@ -95,62 +95,66 @@ static void dump_descriptor(struct action_descriptor *descriptor)
  * the main table, filtering out unsupported erase function pointers, when
  * necessary.
  *
- * base_chip: pointer to the master chip descriptor
- * chip: pointer to the copy, potentially with just a subset of erasers
- *            included.
+ * flash: pointer to the master flash context, including the original chip
+ *        descriptor.
+ * chip: pointer to a flash chip descriptor copy, potentially with just a
+ *            subset of erasers included.
  */
 static void fix_erasers_if_needed(struct flashchip *chip,
-				  const struct flashchip *base_chip)
+				  struct flashctx *flash)
 {
 	int i;
-	const void *allowed_erasers [] = {
-		spi_block_erase_20,
-		spi_block_erase_d8
-	};
 
 	/* Need to copy no matter what. */
-	*chip = *base_chip;
+	*chip = *flash->chip;
 
-	switch (ich_generation) {
-	case CHIPSET_BAYTRAIL:
-		break;
-	default:
+	/*
+	 * ich_generation is set to the chipset type when running on an x86
+	 * device, even when flashrom was invoked to program the EC.
+	 *
+	 * But ICH type does not affect EC programming path, so no need to
+	 * check if the eraser is supported in that case.
+	 */
+	if ((ich_generation == CHIPSET_ICH_UNKNOWN) || programming_ec()) {
 		msg_pdbg("%s: kept all erasers\n",  __func__);
 		return;
 	}
 
+	/*
+	 * We are dealing with an Intel controller; different chipsets allow
+	 * different erase commands. Let's check the commands and allow only
+	 * those which the controller accepts.
+	 */
+	ich_dry_run = 1;
 	for (i = 0; i < NUM_ERASEFUNCTIONS; i++) {
-		uint32_t j;
 
 		/* Assume it is not allowed. */
-		chip->block_erasers[i].block_erase = NULL;
+		if (!chip->block_erasers[i].block_erase)
+			continue;
 
-		for (j = 0; j < ARRAY_SIZE(allowed_erasers); j++) {
-			if (base_chip->block_erasers[i].block_erase ==
-			    allowed_erasers[j]) {
-				msg_pdbg("%s: kept eraser at %d\n",
-					 __func__, i);
-
-				chip->block_erasers[i].block_erase =
-					base_chip->block_erasers[i].block_erase;
-				break;
-			}
+		if (!chip->block_erasers[i].block_erase
+		    (flash, 0, flash->chip->total_size * 1024)) {
+			msg_pdbg("%s: kept eraser at %d\n",  __func__, i);
+			continue;
 		}
+
+		chip->block_erasers[i].block_erase = NULL;
 	}
+	ich_dry_run = 0;
 }
 
 /*
  * Prepare a list of erasers available on this chip, sorted by the block size,
  * from lower to higher.
  *
- * @chip	    pointer to the flash chip descriptor
+ * @flash	    pointer to the flash context
  * @erase_size	    maximum offset which needs to be erased
  * @sorted_erasers  pointer to the array of eraser structures, large enough to
  *                  fit NUM_ERASEFUNCTIONS elements.
  *
  * Returns number of elements put into the 'sorted_erasers' array.
  */
-static size_t fill_sorted_erasers(const struct flashchip *ch,
+static size_t fill_sorted_erasers(struct flashctx *flash,
 				  size_t erase_size,
 				  struct eraser *sorted_erasers)
 {
@@ -175,7 +179,7 @@ static size_t fill_sorted_erasers(const struct flashchip *ch,
 		int alt_region;
 	} fallback = {};
 
-	fix_erasers_if_needed(&chip, ch);
+	fix_erasers_if_needed(&chip, flash);
 
 	/* Iterate over all available erase functions/block sizes. */
 	for (j = k = 0; k < NUM_ERASEFUNCTIONS; k++) {
@@ -655,8 +659,7 @@ struct action_descriptor *prepare_action_descriptor(struct flashctx *flash,
 			block_size = chip_size;
 	}
 
-	num_erasers = fill_sorted_erasers(flash->chip,
-					  block_size, sorted_erasers);
+	num_erasers = fill_sorted_erasers(flash, block_size, sorted_erasers);
 
 	/*
 	 * Let's allocate enough memory for the worst case action descriptor
