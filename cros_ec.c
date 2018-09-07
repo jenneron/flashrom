@@ -292,7 +292,16 @@ static int cros_ec_jump_copy(enum ec_current_image target) {
 	/* Translate target --> EC reboot command parameter */
 	switch (target) {
 	case EC_IMAGE_RO:
-		p.cmd = EC_REBOOT_JUMP_RO;
+		/*
+		 * Do a cold reset instead of JUMP_RO so board enabling
+		 * EC_FLASH_PROTECT_ALL_NOW at runtime can clear the WP flag.
+		 * This is true for EC enabling RWSIG, where
+		 * EC_FLASH_PROTECT_ALL_NOW is applied before jumping into RW.
+		 */
+		if (rwsig_enabled)
+			p.cmd = EC_REBOOT_COLD;
+		else
+			p.cmd = EC_REBOOT_JUMP_RO;
 		break;
 	case EC_IMAGE_RW:
 		p.cmd = EC_REBOOT_JUMP_RW;
@@ -310,25 +319,15 @@ static int cros_ec_jump_copy(enum ec_current_image target) {
 			p.cmd = EC_REBOOT_JUMP_RW;
 			target = EC_IMAGE_RW;
 		} else {
-			p.cmd = EC_IMAGE_UNKNOWN;
+			return 1;
 		}
 		break;
 	}
 
-	/*
-	 * Do a cold reset instead of JUMP_RO so board enabling
-	 * EC_FLASH_PROTECT_ALL_NOW at runtime can clear the WP flag.
-	 * This is true for EC enabling RWSIG, where
-	 * EC_FLASH_PROTECT_ALL_NOW is applied before jumping into RW.
-	 */
-	if (target == EC_IMAGE_RO && rwsig_enabled) {
-		p.cmd = EC_REBOOT_COLD;
-		msg_pdbg("RWSIG enabled: doing a cold reboot instead of "
-			 "JUMP_RO.\n");
-	}
-
-	msg_pdbg("CROS_EC is jumping to [%s]\n", sections[target]);
-	if (p.cmd == EC_IMAGE_UNKNOWN) return 1;
+	if (p.cmd == EC_REBOOT_COLD)
+		msg_pdbg("Doing a cold reboot instead of JUMP_RO/RW.\n");
+	else
+		msg_pdbg("CROS_EC is jumping to [%s]\n", sections[target]);
 
 	if (current_image == p.cmd) {
 		msg_pdbg("CROS_EC is already in [%s]\n", sections[target]);
@@ -337,9 +336,9 @@ static int cros_ec_jump_copy(enum ec_current_image target) {
 	}
 
 	rc = cros_ec_priv->ec_command(EC_CMD_REBOOT_EC,
-				0, &p, sizeof(p), NULL, 0);
+				      0, &p, sizeof(p), NULL, 0);
 	if (rc < 0) {
-		msg_perr("CROS_EC cannot jump to [%s]:%d\n",
+		msg_perr("CROS_EC cannot jump/reboot to [%s]:%d\n",
 			 sections[target], rc);
 		return rc;
 	}
@@ -350,15 +349,14 @@ static int cros_ec_jump_copy(enum ec_current_image target) {
 
 	/* Abort RWSIG jump for EC that use it. Normal EC will ignore it. */
 	if (target == EC_IMAGE_RO && rwsig_enabled) {
-		msg_pdbg("RWSIG enabled: aborting RWSIG jump.\n");
+		msg_pdbg("Aborting RWSIG jump.\n");
 		ec_rwsig_abort();
 	}
 
-	msg_pdbg("CROS_EC has jumped to [%s]\n", sections[target]);
-	rc = EC_RES_SUCCESS;
+	msg_pdbg("CROS_EC jumped/rebooted to [%s]\n", sections[target]);
 	cros_ec_priv->current_image = target;
 
-	return rc;
+	return EC_RES_SUCCESS;
 }
 
 static int cros_ec_restore_wp(void *data)
@@ -475,8 +473,10 @@ int cros_ec_prepare(uint8_t *image, int size) {
  *
  * This function also jumps to new-updated firmware copy before return >0.
  */
-int cros_ec_need_2nd_pass(void) {
-	if (!(cros_ec_priv && cros_ec_priv->detected)) return 0;
+int cros_ec_need_2nd_pass(void)
+{
+	if (!(cros_ec_priv && cros_ec_priv->detected))
+		return 0;
 
 	if (!need_2nd_pass)
 		return 0;
@@ -506,7 +506,8 @@ int cros_ec_need_2nd_pass(void) {
  * the fwcopy[RO].flags is old (0) and A/B are new. Please also refine
  * this code logic if you change the cros_ec_prepare() behavior.
  */
-int cros_ec_finish(void) {
+int cros_ec_finish(void)
+{
 	if (!(cros_ec_priv && cros_ec_priv->detected)) return 0;
 
 	/* For EC with RWSIG enabled. We need a cold reboot to enable
@@ -532,7 +533,8 @@ int cros_ec_finish(void) {
 
 
 int cros_ec_read(struct flashctx *flash, uint8_t *readarr,
-             unsigned int blockaddr, unsigned int readcnt) {
+             unsigned int blockaddr, unsigned int readcnt)
+{
 	int rc = 0;
 	struct ec_params_flash_read p;
 	int maxlen = opaque_programmer->max_data_read;
