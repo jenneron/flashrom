@@ -2006,6 +2006,25 @@ static int erase_chip(struct flashctx *flash, void *oldcontents,
 	return ret;
 }
 
+static int read_dest_content(struct flashctx *flash, int verify_it,
+			     uint8_t *dest, unsigned long size)
+{
+	if (((verify_it == VERIFY_OFF) || (verify_it == VERIFY_PARTIAL))
+			&& get_num_include_args()) {
+		/*
+		 * If no full verification is required and not
+		 * the entire chip is about to be programmed,
+		 * read only the areas which might change.
+		 */
+		if (handle_partial_read(flash, dest, read_flash, 0) < 0)
+			return 1;
+	} else {
+		if (read_flash(flash, dest, 0, size))
+			return 1;
+	}
+	return 0;
+}
+
 /* This function signature is horrible. We need to design a better interface,
  * but right now it allows us to split off the CLI code.
  * Besides that, the function itself is a textbook example of abysmal code flow.
@@ -2129,26 +2148,11 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
 			}
 		} else {
 			msg_cdbg("Reading old contents from flash chip... ");
-			if (((verify_it == VERIFY_OFF) ||
-			     (verify_it == VERIFY_PARTIAL)) &&
-			    get_num_include_args()) {
-				/*
-				 * If no full verification is required and not
-				 * the entire chip is about to be programmed,
-				 * read only the areas which might change.
-				 */
-				if (handle_partial_read(flash, oldcontents,
-							read_flash, 0) < 0) {
-					ret = 1;
-					msg_cdbg("FAILED.\n");
-					goto out;
-				}
-			} else {
-				if (read_flash(flash, oldcontents, 0, size)) {
-					ret = 1;
-					msg_cdbg("FAILED.\n");
-					goto out;
-				}
+			ret = read_dest_content(flash, verify_it,
+						oldcontents, size);
+			if (ret) {
+				msg_cdbg("FAILED.\n");
+				goto out;
 			}
 		}
 		msg_cdbg("done.\n");
@@ -2211,11 +2215,10 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
 		} else if (ret > 0) {
 			// Need 2nd pass. Get the just written content.
 			msg_pdbg("CROS_EC needs 2nd pass.\n");
-
-			if (read_flash(flash, oldcontents, 0, size)) {
-				msg_cerr("Uh oh. Cannot get latest content.\n");
+			ret = read_dest_content(flash, verify_it,
+						oldcontents, size);
+			if (ret) {
 				emergency_help_message();
-				ret = 1;
 				goto out;
 			}
 
