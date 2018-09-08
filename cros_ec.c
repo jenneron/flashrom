@@ -132,8 +132,7 @@ static void cros_ec_invalidate_copy(unsigned int addr, unsigned int len)
 		struct fmap_area *fw = &fwcopy[i];
 		if ((addr >= fw->offset && (addr < fw->offset + fw->size)) ||
 		    (fw->offset >= addr && (fw->offset < addr + len))) {
-			msg_pdbg("Mark firmware [%s] as old.\n",
-				 sections[i]);
+			msg_pdbg(" OLD[%s]", sections[i]);
 			fw->flags = 0;  // mark as old
 		}
 	}

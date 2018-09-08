@@ -1498,19 +1498,19 @@ static int erase_and_write_block_helper(struct flashctx *flash,
 	/* FIXME: Assume 256 byte granularity for now to play it safe. */
 	if (need_erase(flash, curcontents, newcontents, len, gran)) {
 		content_has_changed |= 1;
-		msg_cdbg("E");
+		msg_cdbg(" E");
 		ret = erasefn(flash, start, len);
 		if (ret) {
 			if (ret == ACCESS_DENIED)
-				msg_cdbg("D");
+				msg_cdbg(" DENIED");
 			else
-				msg_cerr("ERASE FAILED!\n");
+				msg_cerr(" ERASE_FAILED\n");
 			return ret;
 		}
 
 		if (programmer_table[programmer].paranoid) {
 			if (check_erased_range(flash, start, len)) {
-				msg_cerr("ERASE FAILED!\n");
+				msg_cerr(" ERASE_FAILED\n");
 				return -1;
 			}
 		}
@@ -1526,13 +1526,13 @@ static int erase_and_write_block_helper(struct flashctx *flash,
 					 len - starthere, &starthere, gran))) {
 		content_has_changed |= 1;
 		if (!writecount++)
-			msg_cdbg("W");
+			msg_cdbg(" W");
 		/* Needs the partial write function signature. */
 		ret = write_flash(flash, newcontents + starthere,
 				   start + starthere, lenhere);
 		if (ret) {
 			if (ret == ACCESS_DENIED)
-				msg_cdbg("D");
+				msg_cdbg(" DENIED");
 			return ret;
 		}
 
@@ -1553,7 +1553,7 @@ static int erase_and_write_block_helper(struct flashctx *flash,
 		skip = 0;
 	}
 	if (skip)
-		msg_cdbg("S");
+		msg_cdbg(" SKIP");
 	return ret;
 }
 
