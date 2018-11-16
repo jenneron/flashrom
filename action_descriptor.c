@@ -555,6 +555,7 @@ static void fill_action_descriptor(struct action_descriptor *descriptor,
 			/* Can move to the next block. */
 			i += range_maps[0].block_size;
 			i &= ~(range_maps[0].block_size - 1);
+			i--; /* adjust for increment in the for loop */
 		}
 	}
 
