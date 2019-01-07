@@ -316,11 +316,11 @@ uint8_t spi_read_status_register(const struct flashctx *flash)
 	static const unsigned char cmd[JEDEC_RDSR_OUTSIZE] = { JEDEC_RDSR };
 	/* FIXME: No workarounds for driver/hardware bugs in generic code. */
 	unsigned char readarr[2]; /* JEDEC_RDSR_INSIZE=1 but wbsio needs 2 */
-	int ret;
+	int ret = 0;
 
 	/* Read Status Register */
 	if (flash->chip->read_status)
-		ret = flash->chip->read_status(flash);
+		readarr[0] = flash->chip->read_status(flash);
 	else
 		ret = spi_send_command(flash, sizeof(cmd), sizeof(readarr), cmd, readarr);
 	if (ret)
