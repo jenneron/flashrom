@@ -107,6 +107,7 @@ int write_opaque(struct flashctx *flash, const uint8_t *buf, unsigned int start,
 int erase_opaque(struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen);
 uint8_t read_status_opaque(const struct flashctx *flash);
 int write_status_opaque(const struct flashctx *flash, int status);
+int check_access_opaque(const struct flashctx *flash, unsigned int start, unsigned int len, int read);
 
 /* 82802ab.c */
 uint8_t wait_82802ab(struct flashctx *flash);
