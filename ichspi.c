@@ -1771,6 +1771,12 @@ int pch100_hwseq_block_erase(struct flashctx *flash,
 	return 0;
 }
 
+int pch100_hwseq_check_access(const struct flashctx *flash, unsigned int start,
+			      unsigned int len, int read)
+{
+	return check_fd_permissions_hwseq(read ? HWSEQ_READ : HWSEQ_WRITE, start, len);
+}
+
 int pch100_hwseq_read(struct flashctx *flash, uint8_t *buf, unsigned int addr,
 		   unsigned int len)
 {
@@ -2117,6 +2123,7 @@ static struct opaque_programmer opaque_programmer_pch100_hwseq = {
 	.read_status = pch100_hwseq_read_status,
 	.write_status = pch100_hwseq_write_status,
 	.erase = pch100_hwseq_block_erase,
+	.check_access = pch100_hwseq_check_access,
 };
 
 static struct opaque_programmer opaque_programmer_ich_hwseq = {

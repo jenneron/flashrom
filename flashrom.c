@@ -41,6 +41,7 @@
 #include "flashchips.h"
 #include "layout.h"
 #include "programmer.h"
+#include "spi.h"
 
 const char flashrom_version[] = FLASHROM_VERSION;
 char *chip_to_probe = NULL;
@@ -702,6 +703,16 @@ int verify_range(struct flashctx *flash, uint8_t *cmpbuf, unsigned int start, un
 					continue;
 				else
 					goto out_free;
+			}
+
+			/*
+			 * Check write access permission and do not compare chunks
+			 * where flashrom does not have write access to the region.
+			 */
+			if (flash->chip->check_access) {
+				tmp = flash->chip->check_access(flash, start + i, chunksize, 0);
+				if (tmp && ignore_error(tmp))
+					continue;
 			}
 
 			failcount = compare_chunk(readbuf + i, cmpbuf + i, start + i,

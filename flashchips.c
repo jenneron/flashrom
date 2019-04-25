@@ -11069,6 +11069,7 @@ const struct flashchip flashchips_hwseq[] = {
 		.read		= read_opaque,
 		.read_status	= read_status_opaque,
 		.write_status	= write_status_opaque,
+		.check_access	= check_access_opaque,
 		.wp		= &wp_w25,
 		.unlock	= &spi_disable_blockprotect,
 	},

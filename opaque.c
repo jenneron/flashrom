@@ -39,6 +39,7 @@ struct opaque_programmer opaque_programmer_none = {
 	.read_status = NULL,
 	.write_status = NULL,
 	.erase = NULL,
+	.check_access = NULL,
 };
 
 struct opaque_programmer *opaque_programmer = &opaque_programmer_none;
@@ -108,6 +109,13 @@ int write_status_opaque(const struct flashctx *flash, int status)
 		return 1;
 	}
 	return opaque_programmer->write_status(flash, status);
+}
+
+int check_access_opaque(const struct flashctx *flash, unsigned int start, unsigned int len, int rw)
+{
+	if (opaque_programmer->check_access)
+		return opaque_programmer->check_access(flash, start, len, rw);
+	return 1;
 }
 
 void register_opaque_programmer(struct opaque_programmer *pgm)

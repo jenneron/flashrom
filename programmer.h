@@ -672,6 +672,7 @@ struct opaque_programmer {
 	int (*erase) (struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen);
 	uint8_t (*read_status) (const struct flashctx *flash);
 	int (*write_status) (const struct flashctx *flash, int status);
+	int (*check_access) (const struct flashctx *flash, unsigned int start, unsigned int len, int read);
 	const void *data;
 };
 extern struct opaque_programmer *opaque_programmer;

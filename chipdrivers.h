@@ -67,6 +67,7 @@ int write_opaque(struct flashctx *flash, const uint8_t *buf, unsigned int start,
 int erase_opaque(struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen);
 uint8_t read_status_opaque(const struct flashctx *flash);
 int write_status_opaque(const struct flashctx *flash, int status);
+int check_access_opaque(const struct flashctx *flash, unsigned int start, unsigned int len, int read);
 
 /* a25.c */
 int spi_prettyprint_status_register_amic_a25l05p(struct flashctx *flash);
