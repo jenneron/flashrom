@@ -169,7 +169,7 @@ struct ich_desc_region {
 	};
 };
 
-struct ich_desc_master {
+struct ich_desc_master_ich {
 	union {
 		uint32_t FLMSTR1;
 		struct {
@@ -223,6 +223,139 @@ struct ich_desc_master {
 				 GbE_plat_w	:1,
 						:3;
 		};
+	};
+};
+
+/*
+ * Flash Descriptor Master Access settings for PCH100+
+ *
+ * [31:20] Master Region Write Access (regions 11:0)
+ * [19:8] Master Region Read Access (regions 11:0)
+ * [7:4] Extended Region Write Access (regions 15:12)
+ * [3:0] Extended Region Read access (regions 15:12)
+ */
+struct ich_desc_master_pch100 {
+	union {
+		uint32_t FLMSTR1;
+		struct {
+			uint32_t BIOS_ext_r	:4,
+				 BIOS_ext_w	:4,
+				 BIOS_descr_r	:1,
+				 BIOS_BIOS_r	:1,
+				 BIOS_ME_r	:1,
+				 BIOS_GbE_r	:1,
+				 BIOS_plat_r	:1,
+						:3,
+				 BIOS_EC_r	:1,
+						:3,
+				 BIOS_descr_w	:1,
+				 BIOS_BIOS_w	:1,
+				 BIOS_ME_w	:1,
+				 BIOS_GbE_w	:1,
+				 BIOS_plat_w	:1,
+						:3,
+				 BIOS_EC_w	:1,
+						:3;
+		};
+	};
+	union {
+		uint32_t FLMSTR2;
+		struct {
+			uint32_t ME_ext_r	:4,
+				 ME_ext_w	:4,
+				 ME_descr_r	:1,
+				 ME_BIOS_r	:1,
+				 ME_ME_r	:1,
+				 ME_GbE_r	:1,
+				 ME_plat_r	:1,
+						:3,
+				 ME_EC_r	:1,
+						:3,
+				 ME_descr_w	:1,
+				 ME_BIOS_w	:1,
+				 ME_ME_w	:1,
+				 ME_GbE_w	:1,
+				 ME_plat_w	:1,
+						:3,
+				 ME_EC_w	:1,
+						:3;
+		};
+	};
+	union {
+		uint32_t FLMSTR3;
+		struct {
+			uint32_t GbE_ext_r	:4,
+				 GbE_ext_w	:4,
+				 GbE_descr_r	:1,
+				 GbE_BIOS_r	:1,
+				 GbE_ME_r	:1,
+				 GbE_GbE_r	:1,
+				 GbE_plat_r	:1,
+						:3,
+				 GbE_EC_r	:1,
+						:3,
+				 GbE_descr_w	:1,
+				 GbE_BIOS_w	:1,
+				 GbE_ME_w	:1,
+				 GbE_GbE_w	:1,
+				 GbE_plat_w	:1,
+						:3,
+				 GbE_EC_w	:1,
+						:3;
+		};
+	};
+	union {
+		uint32_t FLMSTR4;
+		struct {
+			uint32_t plat_ext_r	:4,
+				 plat_ext_w	:4,
+				 plat_descr_r	:1,
+				 plat_BIOS_r	:1,
+				 plat_ME_r	:1,
+				 plat_GbE_r	:1,
+				 plat_plat_r	:1,
+						:3,
+				 plat_EC_r	:1,
+						:3,
+				 plat_descr_w	:1,
+				 plat_BIOS_w	:1,
+				 plat_ME_w	:1,
+				 plat_GbE_w	:1,
+				 plat_plat_w	:1,
+						:3,
+				 plat_EC_w	:1,
+						:3;
+		};
+	};
+	union {
+		uint32_t FLMSTR5;
+		struct {
+			uint32_t EC_ext_r	:4,
+				 EC_ext_w	:4,
+				 EC_descr_r	:1,
+				 EC_BIOS_r	:1,
+				 EC_ME_r	:1,
+				 EC_GbE_r	:1,
+				 EC_plat_r	:1,
+						:3,
+				 EC_EC_r	:1,
+						:3,
+				 EC_descr_w	:1,
+				 EC_BIOS_w	:1,
+				 EC_ME_w	:1,
+				 EC_GbE_w	:1,
+				 EC_plat_w	:1,
+						:3,
+				 EC_EC_w	:1,
+						:3;
+		};
+	};
+};
+
+struct ich_desc_master {
+	union {
+		struct ich_desc_master_ich ich;
+		struct ich_desc_master_pch100 pch100;
 	};
 };
 
@@ -556,13 +689,15 @@ void prettyprint_ich_descriptors(enum ich_chipset cs, const struct ich_descripto
 void prettyprint_ich_descriptor_content(const struct ich_desc_content *content);
 void prettyprint_ich_descriptor_component(const struct ich_descriptors *desc);
 void prettyprint_ich_descriptor_region(const struct ich_descriptors *desc);
-void prettyprint_ich_descriptor_master(const struct ich_desc_master *master);
+void prettyprint_ich_descriptor_master(enum ich_chipset cs, const struct ich_desc_master *master);
 
 #ifdef ICH_DESCRIPTORS_FROM_DUMP
 
 void prettyprint_ich_descriptor_upper_map(const struct ich_desc_upper_map *umap);
 void prettyprint_ich_descriptor_straps(enum ich_chipset cs, const struct ich_descriptors *desc);
-int read_ich_descriptors_from_dump(const uint32_t *dump, unsigned int len, struct ich_descriptors *desc);
+int read_ich_descriptors_from_dump(const uint32_t *dump, unsigned int len,
+				   struct ich_descriptors *desc,
+				   enum ich_chipset cs);
 
 #else /* ICH_DESCRIPTORS_FROM_DUMP */
 

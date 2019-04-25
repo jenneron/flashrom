@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 			cs = CHIPSET_9_SERIES_WILDCAT_POINT;
 	}
 
-	ret = read_ich_descriptors_from_dump(buf, len, &desc);
+	ret = read_ich_descriptors_from_dump(buf, len, &desc, cs);
 	switch (ret) {
 	case ICH_RET_OK:
 		break;
