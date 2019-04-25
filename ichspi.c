@@ -2310,7 +2310,7 @@ int ich_init_spi(struct pci_dev *dev, uint32_t base, void *rcrb,
 		if (desc_valid) {
 			if (read_ich_descriptors_via_fdo(ich_spibar, &desc,
 					ich_generation) == ICH_RET_OK)
-				prettyprint_ich_descriptors(CHIPSET_ICH_UNKNOWN,
+				prettyprint_ich_descriptors(ich_generation,
 							    &desc);
 		} else {
 			msg_perr("Hardware sequencing was requested "
@@ -2442,7 +2442,7 @@ int ich_init_spi(struct pci_dev *dev, uint32_t base, void *rcrb,
 		if (desc_valid) {
 			if (read_ich_descriptors_via_fdo(ich_spibar, &desc,
 					ich_generation) == ICH_RET_OK)
-				prettyprint_ich_descriptors(CHIPSET_ICH_UNKNOWN,
+				prettyprint_ich_descriptors(ich_generation,
 							    &desc);
 			/* If the descriptor is valid and indicates multiple
 			 * flash devices we need to use hwseq to be able to

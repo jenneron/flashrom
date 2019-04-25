@@ -63,7 +63,7 @@ void prettyprint_ich_descriptors(enum ich_chipset cs, const struct ich_descripto
 	prettyprint_ich_descriptor_content(&desc->content);
 	prettyprint_ich_descriptor_component(desc);
 	prettyprint_ich_descriptor_region(desc);
-	prettyprint_ich_descriptor_master(&desc->master);
+	prettyprint_ich_descriptor_master(cs, &desc->master);
 #ifdef ICH_DESCRIPTORS_FROM_DUMP
 	if (cs >= CHIPSET_ICH8) {
 		prettyprint_ich_descriptor_upper_map(&desc->upper);
@@ -205,7 +205,7 @@ void prettyprint_ich_descriptor_region(const struct ich_descriptors *desc)
 	msg_pdbg2("\n");
 }
 
-void prettyprint_ich_descriptor_master(const struct ich_desc_master *mstr)
+static void prettyprint_ich_descriptor_master_ich(const struct ich_desc_master_ich *mstr)
 {
 	msg_pdbg2("=== Master Section ===\n");
 	msg_pdbg2("FLMSTR1  0x%08x\n", mstr->FLMSTR1);
@@ -234,6 +234,66 @@ void prettyprint_ich_descriptor_master(const struct ich_desc_master *mstr)
 	(mstr->GbE_GbE_r)	?'r':' ', (mstr->GbE_GbE_w)	?'w':' ',
 	(mstr->GbE_plat_r)	?'r':' ', (mstr->GbE_plat_w)	?'w':' ');
 	msg_pdbg2("\n");
+}
+
+static void prettyprint_ich_descriptor_master_pch100(const struct ich_desc_master_pch100 *mstr)
+{
+	msg_pdbg2("=== Master Section ===\n");
+	msg_pdbg2("FLMSTR1  0x%08x\n", mstr->FLMSTR1);
+	msg_pdbg2("FLMSTR2  0x%08x\n", mstr->FLMSTR2);
+	msg_pdbg2("FLMSTR3  0x%08x\n", mstr->FLMSTR3);
+	msg_pdbg2("FLMSTR4  0x%08x\n", mstr->FLMSTR4);
+	msg_pdbg2("FLMSTR5  0x%08x\n", mstr->FLMSTR5);
+	msg_pdbg2("\n");
+
+	msg_pdbg2("--- Details ---\n");
+	msg_pdbg2("      Descr. BIOS ME GbE Plat EC\n");
+	msg_pdbg2("BIOS    %c%c    %c%c  %c%c  %c%c  %c%c  %c%c\n",
+	(mstr->BIOS_descr_r)	?'r':' ', (mstr->BIOS_descr_w)	?'w':' ',
+	(mstr->BIOS_BIOS_r)	?'r':' ', (mstr->BIOS_BIOS_w)	?'w':' ',
+	(mstr->BIOS_ME_r)	?'r':' ', (mstr->BIOS_ME_w)	?'w':' ',
+	(mstr->BIOS_GbE_r)	?'r':' ', (mstr->BIOS_GbE_w)	?'w':' ',
+	(mstr->BIOS_plat_r)	?'r':' ', (mstr->BIOS_plat_w)	?'w':' ',
+	(mstr->BIOS_EC_r)	?'r':' ', (mstr->BIOS_EC_w)	?'w':' ');
+	msg_pdbg2("ME      %c%c    %c%c  %c%c  %c%c  %c%c  %c%c\n",
+	(mstr->ME_descr_r)	?'r':' ', (mstr->ME_descr_w)	?'w':' ',
+	(mstr->ME_BIOS_r)	?'r':' ', (mstr->ME_BIOS_w)	?'w':' ',
+	(mstr->ME_ME_r)		?'r':' ', (mstr->ME_ME_w)	?'w':' ',
+	(mstr->ME_GbE_r)	?'r':' ', (mstr->ME_GbE_w)	?'w':' ',
+	(mstr->ME_plat_r)	?'r':' ', (mstr->ME_plat_w)	?'w':' ',
+	(mstr->ME_EC_r)		?'r':' ', (mstr->ME_EC_w)	?'w':' ');
+	msg_pdbg2("GbE     %c%c    %c%c  %c%c  %c%c  %c%c  %c%c\n",
+	(mstr->GbE_descr_r)	?'r':' ', (mstr->GbE_descr_w)	?'w':' ',
+	(mstr->GbE_BIOS_r)	?'r':' ', (mstr->GbE_BIOS_w)	?'w':' ',
+	(mstr->GbE_ME_r)	?'r':' ', (mstr->GbE_ME_w)	?'w':' ',
+	(mstr->GbE_GbE_r)	?'r':' ', (mstr->GbE_GbE_w)	?'w':' ',
+	(mstr->GbE_plat_r)	?'r':' ', (mstr->GbE_plat_w)	?'w':' ',
+	(mstr->GbE_EC_r)	?'r':' ', (mstr->GbE_EC_w)	?'w':' ');
+	msg_pdbg2("Plat    %c%c    %c%c  %c%c  %c%c  %c%c  %c%c\n",
+	(mstr->plat_descr_r)	?'r':' ', (mstr->plat_descr_w)	?'w':' ',
+	(mstr->plat_BIOS_r)	?'r':' ', (mstr->plat_BIOS_w)	?'w':' ',
+	(mstr->plat_ME_r)	?'r':' ', (mstr->plat_ME_w)	?'w':' ',
+	(mstr->plat_GbE_r)	?'r':' ', (mstr->plat_GbE_w)	?'w':' ',
+	(mstr->plat_plat_r)	?'r':' ', (mstr->plat_plat_w)	?'w':' ',
+	(mstr->plat_EC_r)	?'r':' ', (mstr->plat_EC_w)	?'w':' ');
+	msg_pdbg2("EC      %c%c    %c%c  %c%c  %c%c  %c%c  %c%c\n",
+	(mstr->EC_descr_r)	?'r':' ', (mstr->EC_descr_w)	?'w':' ',
+	(mstr->EC_BIOS_r)	?'r':' ', (mstr->EC_BIOS_w)	?'w':' ',
+	(mstr->EC_ME_r)		?'r':' ', (mstr->EC_ME_w)	?'w':' ',
+	(mstr->EC_GbE_r)	?'r':' ', (mstr->EC_GbE_w)	?'w':' ',
+	(mstr->EC_plat_r)	?'r':' ', (mstr->EC_plat_w)	?'w':' ',
+	(mstr->EC_EC_r)		?'r':' ', (mstr->EC_EC_w)	?'w':' ');
+	msg_pdbg2("\n");
+}
+
+void prettyprint_ich_descriptor_master(enum ich_chipset cs,
+				       const struct ich_desc_master *mstr)
+{
+	msg_pdbg2("%s: cs=%d\n", __func__, cs);
+	if (cs >= CHIPSET_100_SERIES_SUNRISE_POINT)
+		prettyprint_ich_descriptor_master_pch100(&mstr->pch100);
+	else
+		prettyprint_ich_descriptor_master_ich(&mstr->ich);
 }
 
 #ifdef ICH_DESCRIPTORS_FROM_DUMP
@@ -646,7 +706,9 @@ void prettyprint_ich_descriptor_upper_map(const struct ich_desc_upper_map *umap)
 }
 
 /* len is the length of dump in bytes */
-int read_ich_descriptors_from_dump(const uint32_t *dump, unsigned int len, struct ich_descriptors *desc)
+int read_ich_descriptors_from_dump(const uint32_t *dump, unsigned int len,
+				   struct ich_descriptors *desc,
+				   enum ich_chipset cs)
 {
 	unsigned int i, max;
 	uint8_t pch_bug_offset = 0;
@@ -688,9 +750,17 @@ int read_ich_descriptors_from_dump(const uint32_t *dump, unsigned int len, struc
 	/* master */
 	if (len < (getFMBA(&desc->content) + 3 * 4 - 1))
 		return ICH_RET_OOB;
-	desc->master.FLMSTR1 = dump[(getFMBA(&desc->content) >> 2) + 0];
-	desc->master.FLMSTR2 = dump[(getFMBA(&desc->content) >> 2) + 1];
-	desc->master.FLMSTR3 = dump[(getFMBA(&desc->content) >> 2) + 2];
+	if (cs >= CHIPSET_100_SERIES_SUNRISE_POINT) {
+		desc->master.pch100.FLMSTR1 = dump[(getFMBA(&desc->content) >> 2) + 0];
+		desc->master.pch100.FLMSTR2 = dump[(getFMBA(&desc->content) >> 2) + 1];
+		desc->master.pch100.FLMSTR3 = dump[(getFMBA(&desc->content) >> 2) + 2];
+		desc->master.pch100.FLMSTR4 = dump[(getFMBA(&desc->content) >> 2) + 3];
+		desc->master.pch100.FLMSTR5 = dump[(getFMBA(&desc->content) >> 2) + 4];
+	} else {
+		desc->master.ich.FLMSTR1 = dump[(getFMBA(&desc->content) >> 2) + 0];
+		desc->master.ich.FLMSTR2 = dump[(getFMBA(&desc->content) >> 2) + 1];
+		desc->master.ich.FLMSTR3 = dump[(getFMBA(&desc->content) >> 2) + 2];
+	}
 
 	/* upper map */
 	desc->upper.FLUMAP1 = dump[(UPPER_MAP_OFFSET >> 2) + 0];
@@ -835,9 +905,17 @@ int read_ich_descriptors_via_fdo(void *spibar, struct ich_descriptors *desc,
 						spibar, chipset);
 
 	/* master section */
-	desc->master.FLMSTR1 = read_descriptor_reg(3, 0, spibar, chipset);
-	desc->master.FLMSTR2 = read_descriptor_reg(3, 1, spibar, chipset);
-	desc->master.FLMSTR3 = read_descriptor_reg(3, 2, spibar, chipset);
+	if (chipset >= CHIPSET_100_SERIES_SUNRISE_POINT) {
+		desc->master.pch100.FLMSTR1 = read_descriptor_reg(3, 0, spibar, chipset);
+		desc->master.pch100.FLMSTR2 = read_descriptor_reg(3, 1, spibar, chipset);
+		desc->master.pch100.FLMSTR3 = read_descriptor_reg(3, 2, spibar, chipset);
+		desc->master.pch100.FLMSTR4 = read_descriptor_reg(3, 3, spibar, chipset);
+		desc->master.pch100.FLMSTR5 = read_descriptor_reg(3, 4, spibar, chipset);
+	} else {
+		desc->master.ich.FLMSTR1 = read_descriptor_reg(3, 0, spibar, chipset);
+		desc->master.ich.FLMSTR2 = read_descriptor_reg(3, 1, spibar, chipset);
+		desc->master.ich.FLMSTR3 = read_descriptor_reg(3, 2, spibar, chipset);
+	}
 
 	/* Accessing the strap section via FDOC/D is only possible on ICH8 and
 	 * reading the upper map is impossible on all chipsets, so don't bother.
