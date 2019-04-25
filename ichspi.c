@@ -2035,8 +2035,31 @@ static void do_ich9_spi_frap(uint32_t frap, int i)
 	 * bits to indicate permissions in Flash Region Access Permissions
 	 * register.
 	 */
-	if ( i >= EMBEDDED_CONTROLLER_REGION )
+	if ( i >= EMBEDDED_CONTROLLER_REGION ) {
+		/*
+		 * Use Flash Descriptor Observe register to determine if
+		 * the EC region can be written by the BIOS master.
+		 */
 		rwperms = FD_REGION_READ_WRITE;
+		if (i == EMBEDDED_CONTROLLER_REGION &&
+		    ich_generation >= CHIPSET_100_SERIES_SUNRISE_POINT) {
+			struct ich_descriptors desc = {{ 0 }};
+			if (read_ich_descriptors_via_fdo(ich_spibar, &desc,
+						ich_generation) == ICH_RET_OK) {
+				if (desc.master.pch100.BIOS_EC_r &&
+				    desc.master.pch100.BIOS_EC_w)
+					rwperms = FD_REGION_READ_WRITE;
+				else if (desc.master.pch100.BIOS_EC_r &&
+					 !desc.master.pch100.BIOS_EC_w)
+					rwperms = FD_REGION_READ_ONLY;
+				else if (!desc.master.pch100.BIOS_EC_r &&
+					 desc.master.pch100.BIOS_EC_w)
+					rwperms = FD_REGION_WRITE_ONLY;
+				else
+					rwperms = FD_REGION_LOCKED;
+			}
+		}
+	}
 
 	fd_regions[i].permission = &fd_region_permissions[rwperms];
 	if (fd_regions[i].base > fd_regions[i].limit) {
