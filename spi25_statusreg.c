@@ -97,11 +97,15 @@ int spi_write_status_register(const struct flashctx *flash, int status)
 			 "EWSR is needed\n");
 		feature_bits |= FEATURE_WRSR_EWSR;
 	}
-	if (feature_bits & FEATURE_WRSR_WREN)
-		ret = spi_write_status_register_flag(flash, status, JEDEC_WREN);
-	if (ret && (feature_bits & FEATURE_WRSR_EWSR))
-		ret = spi_write_status_register_flag(flash, status, JEDEC_EWSR);
-	return ret;
+	if (flash->chip->write_status) {
+                ret = flash->chip->write_status(flash, status);
+        } else {
+                if (feature_bits & FEATURE_WRSR_WREN)
+                        ret = spi_write_status_register_flag(flash, status, JEDEC_WREN);
+                if (ret && (feature_bits & FEATURE_WRSR_EWSR))
+                        ret = spi_write_status_register_flag(flash, status, JEDEC_EWSR);
+        }
+        return ret;
 }
 
 uint8_t spi_read_status_register(const struct flashctx *flash)
