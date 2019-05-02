@@ -677,12 +677,6 @@ int spi_nbyte_program(struct flashctx *flash, unsigned int addr, const uint8_t *
 	return result;
 }
 
-int spi_restore_status(struct flashctx *flash, uint8_t status)
-{
-	msg_cdbg("restoring chip status (0x%02x)\n", status);
-	return spi_write_status_register(flash, status);
-}
-
 int spi_nbyte_read(struct flashctx *flash, unsigned int address, uint8_t *bytes, unsigned int len)
 {
 	const unsigned char cmd[JEDEC_READ_OUTSIZE] = {
