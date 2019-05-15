@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <mtd/mtd-user.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -49,6 +50,19 @@ static int mtd_no_erase;
 static unsigned long int mtd_total_size;
 static unsigned long int mtd_numeraseregions;
 static unsigned long int mtd_erasesize;	/* only valid if numeraseregions is 0 */
+
+/*
+ * Optional flashname from mtd driver.
+ * Current longest ID is "mp25p128-nonjede" from spi-nor.c so
+ * 80 should be more than enough
+ */
+static bool mtd_flash_name_valid =false;
+static char mtd_flash_name[80];
+
+/* Optional id from mtd driver */
+static bool mtd_flash_id_valid =false;
+static uint32_t mtd_manufacture_id;
+static uint32_t mtd_model_id;
 
 static struct wp wp_mtd;	/* forward declaration */
 
@@ -137,6 +151,7 @@ static int get_mtd_info(void)
 {
 	unsigned long int tmp;
 	char mtd_device_name[32];
+	char mtd_id[32];
 
 	/* Flags */
 	if (read_sysfs_int("flags", &tmp))
@@ -177,6 +192,23 @@ static int get_mtd_info(void)
 		return 1;
 	}
 
+	/* Flash chip name (Extended information) */
+	if (!read_sysfs_string("flashname", mtd_flash_name, sizeof(mtd_flash_name))) {
+		mtd_flash_name_valid = true;
+	}
+
+	/* JEDEC ID (Extended information) */
+	if (!read_sysfs_string("id", mtd_id, sizeof(mtd_id))) {
+		int len = strlen(mtd_id);
+		if (len <= 4) {
+			return 1;
+		}
+		sscanf(&mtd_id[len-4], "%"SCNx32, &mtd_model_id);
+		mtd_id[len-4] = 0;
+		sscanf(&mtd_id[0], "%"SCNx32, &mtd_manufacture_id);
+		mtd_flash_id_valid = true;
+	}
+
 	msg_pspew("%s: device_name: \"%s\", is_writeable: %d, "
 		"numeraseregions: %lu, total_size: %lu, erasesize: %lu\n",
 		__func__, mtd_device_name, mtd_device_is_writeable,
@@ -195,6 +227,28 @@ static int linux_mtd_probe(struct flashctx *flash)
 	flash->chip->block_erasers[0].eraseblocks[0].size = mtd_erasesize;
 	flash->chip->block_erasers[0].eraseblocks[0].count =
 				mtd_total_size / mtd_erasesize;
+
+	/* If we have valid flash name, set it before scanning chip ID */
+	if (mtd_flash_name_valid) {
+		flash->chip->name = mtd_flash_name;
+	}
+
+	/*
+	 * If we have valid flash ID, scan chip ID from database in
+	 * flashchips.c. Overwrite vendor and chip names if found.
+	 */
+	if (mtd_flash_id_valid) {
+		const struct flashchip *chip = flash_id_to_entry(
+			mtd_manufacture_id,
+			mtd_model_id);
+		if (chip != NULL) {
+			flash->chip->vendor = chip->vendor;
+			flash->chip->name = chip->name;
+		}
+		flash->chip->manufacture_id = mtd_manufacture_id;
+		flash->chip->model_id = mtd_model_id;
+	}
+
 	return 1;
 }
 
