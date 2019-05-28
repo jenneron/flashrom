@@ -2044,7 +2044,11 @@ static void do_ich9_spi_frap(uint32_t frap, int i)
 		if (i == EMBEDDED_CONTROLLER_REGION &&
 		    ich_generation >= CHIPSET_100_SERIES_SUNRISE_POINT) {
 			struct ich_descriptors desc = {{ 0 }};
-			if (read_ich_descriptors_via_fdo(ich_spibar, &desc,
+			/* Region is RW if flash descriptor override is set */
+			freg = mmio_readl(ich_spibar + PCH100_REG_HSFSC);
+			if ((freg & HSFSC_FDV) && !(freg & HSFSC_FDOPSS))
+				rwperms = FD_REGION_READ_WRITE;
+			else if (read_ich_descriptors_via_fdo(ich_spibar, &desc,
 						ich_generation) == ICH_RET_OK) {
 				if (desc.master.pch100.BIOS_EC_r &&
 				    desc.master.pch100.BIOS_EC_w)
