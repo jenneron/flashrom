@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <mtd/mtd-user.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -35,9 +36,12 @@
 
 #define LINUX_DEV_ROOT			"/dev"
 #define LINUX_MTD_SYSFS_ROOT		"/sys/class/mtd"
+#define LINUX_MTD_DEBUGFS_ROOT		"/sys/kernel/debug/mtd"
 
 /* enough space for LINUX_MTD_SYSFS_ROOT + directory name + filename */
 static char sysfs_path[PATH_MAX];
+
+static char debugfs_path[PATH_MAX];
 
 static int dev_fd = -1;
 
@@ -49,6 +53,20 @@ static int mtd_no_erase;
 static unsigned long int mtd_total_size;
 static unsigned long int mtd_numeraseregions;
 static unsigned long int mtd_erasesize;	/* only valid if numeraseregions is 0 */
+
+/*
+ * Optional flashname from mtd driver.
+ * Current longest ID is "mp25p128-nonjedec" from spi-nor.c so
+ * 80 should be more than enough
+ */
+static bool mtd_flash_name_valid = false;
+static char mtd_flash_name[80];
+
+/* Optional id from mtd driver */
+#define PARTID_LENGTH 14 /* "spi-nor:" + 2 manufacture_id + 4 model_id */
+static bool mtd_flash_id_valid = false;
+static uint32_t mtd_manufacture_id;
+static uint32_t mtd_model_id;
 
 static struct wp wp_mtd;	/* forward declaration */
 
@@ -132,11 +150,50 @@ static int read_sysfs_int(const char *filename, unsigned long int *val)
 	return 0;
 }
 
+/* read a string from a debugfs file and sanitize it */
+static int read_debugfs_string(const char *filename, char *buf, int len)
+{
+	int fd, bytes_read, i;
+	char path[sizeof(LINUX_MTD_DEBUGFS_ROOT) + 32];
+
+	snprintf(path, sizeof(path), "%s/%s", debugfs_path, filename);
+
+	if ((fd = open(path, O_RDONLY)) < 0) {
+		msg_perr("Cannot open %s\n", path);
+		return 1;
+	}
+
+	if ((bytes_read = read(fd, buf, len - 1)) < 0) {
+		msg_perr("Cannot read %s\n", path);
+		close(fd);
+		return 1;
+	}
+
+	buf[bytes_read] = '\0';
+
+	/*
+	 * Files from debugfs sometimes contain a newline or other garbage that
+	 * can confuse functions like strtoul() and ruin formatting in print
+	 * statements. Replace the first non-printable character (space is
+	 * considered printable) with a proper string terminator.
+	 */
+	for (i = 0; i < len; i++) {
+		if (!isprint(buf[i])) {
+			buf[i] = '\0';
+			break;
+		}
+	}
+
+	close(fd);
+	return 0;
+}
+
 /* returns 0 to indicate success, non-zero to indicate error */
 static int get_mtd_info(void)
 {
 	unsigned long int tmp;
 	char mtd_device_name[32];
+	char mtd_id[32];
 
 	/* Flags */
 	if (read_sysfs_int("flags", &tmp))
@@ -177,6 +234,26 @@ static int get_mtd_info(void)
 		return 1;
 	}
 
+	/* Flash chip name (Extended information) */
+	if (!read_debugfs_string("partname", mtd_flash_name,
+				 sizeof(mtd_flash_name)))
+		mtd_flash_name_valid = true;
+
+	/* JEDEC ID (Extended information) */
+	if (!read_debugfs_string("partid", mtd_id, sizeof(mtd_id))) {
+		int len = strlen(mtd_id);
+		if (len != PARTID_LENGTH) {
+			return 1;
+		}
+		if (sscanf(mtd_id, "spi-nor:%2"SCNx32"%4"SCNx32,
+			&mtd_manufacture_id, &mtd_model_id) != 2) {
+			msg_perr("Can't obtain manufacture_id and model_id "
+				"from \"%s\"\n", mtd_id);
+			return 1;
+		}
+		mtd_flash_id_valid = true;
+	}
+
 	msg_pspew("%s: device_name: \"%s\", is_writeable: %d, "
 		"numeraseregions: %lu, total_size: %lu, erasesize: %lu\n",
 		__func__, mtd_device_name, mtd_device_is_writeable,
@@ -195,6 +272,28 @@ static int linux_mtd_probe(struct flashctx *flash)
 	flash->chip->block_erasers[0].eraseblocks[0].size = mtd_erasesize;
 	flash->chip->block_erasers[0].eraseblocks[0].count =
 				mtd_total_size / mtd_erasesize;
+
+	/* If we have valid flash name, set it before scanning chip ID */
+	if (mtd_flash_name_valid) {
+		flash->chip->name = mtd_flash_name;
+	}
+
+	/*
+	 * If we have valid flash ID, scan chip ID from database in
+	 * flashchips.c. Overwrite vendor and chip names if found.
+	 */
+	if (mtd_flash_id_valid) {
+		const struct flashchip *chip = flash_id_to_entry(
+			mtd_manufacture_id,
+			mtd_model_id);
+		if (chip != NULL) {
+			flash->chip->vendor = chip->vendor;
+			flash->chip->name = chip->name;
+		}
+		flash->chip->manufacture_id = mtd_manufacture_id;
+		flash->chip->model_id = mtd_model_id;
+	}
+
 	return 1;
 }
 
@@ -342,8 +441,11 @@ static int linux_mtd_setup(int dev_num)
 				LINUX_MTD_SYSFS_ROOT, dev_num);
 	snprintf(dev_path, sizeof(dev_path), "%s/mtd%d",
 				LINUX_DEV_ROOT, dev_num);
-	msg_pdbg("%s: sysfs_path: \"%s\", dev_path: \"%s\"\n",
-			__func__, sysfs_path, dev_path);
+	snprintf(debugfs_path, sizeof(debugfs_path), "%s/mtd%d",
+				LINUX_MTD_DEBUGFS_ROOT, dev_num);
+	msg_pdbg("%s: sysfs_path: \"%s\", dev_path: \"%s\"\n, "
+		"debugfs_path: \"%s\"\n", __func__,
+		sysfs_path, dev_path, debugfs_path);
 
 	if (stat_mtd_files(dev_path))
 		goto linux_mtd_setup_exit;
