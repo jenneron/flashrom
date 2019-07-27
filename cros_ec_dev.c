@@ -330,12 +330,23 @@ static struct cros_ec_priv cros_ec_dev_priv = {
 	.dev = "ec",
 };
 
+static int cros_ec_write_status(const struct flashctx *flash, int status)
+{
+	return 0;
+}
+static uint8_t cros_ec_read_status(const struct flashctx *flash)
+{
+	return 0;
+}
+
 static struct opaque_master opaque_master_cros_ec_dev = {
 	.max_data_read	= 128,
 	.max_data_write	= 128,
 	.probe		= cros_ec_probe_size,
 	.read		= cros_ec_read,
 	.write		= cros_ec_write,
+	.read_status	= cros_ec_read_status,
+	.write_status	= cros_ec_write_status,
 	.erase		= cros_ec_block_erase,
 };
 

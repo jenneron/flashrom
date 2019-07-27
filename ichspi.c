@@ -1537,6 +1537,11 @@ int ich_hwseq_read(struct flashctx *flash, uint8_t *buf, unsigned int addr,
 	return 0;
 }
 
+static uint8_t ich_hwseq_read_status(const struct flashctx *flash)
+{
+	return 0;
+}
+
 static int ich_hwseq_write(struct flashctx *flash, const uint8_t *buf, unsigned int addr,
 		    unsigned int len)
 {
@@ -1573,6 +1578,11 @@ static int ich_hwseq_write(struct flashctx *flash, const uint8_t *buf, unsigned 
 		buf += block_len;
 		len -= block_len;
 	}
+	return 0;
+}
+
+static int ich_hwseq_write_status(const struct flashctx *flash, int status)
+{
 	return 0;
 }
 
@@ -2177,6 +2187,8 @@ static struct opaque_master opaque_master_ich_hwseq = {
 	.max_data_write = 64,
 	.probe = ich_hwseq_probe,
 	.read = ich_hwseq_read,
+	.read_status = ich_hwseq_read_status,
+	.write_status = ich_hwseq_write_status,
 	.write = ich_hwseq_write,
 	.erase = ich_hwseq_block_erase,
 };
