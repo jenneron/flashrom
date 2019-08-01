@@ -390,23 +390,12 @@ static struct cros_ec_priv cros_ec_lpc_priv = {
 	.ec_command	= cros_ec_command_lpc_lm4,
 };
 
-static int cros_ec_write_status(const struct flashctx *flash, int status)
-{
-	return 0;
-}
-static uint8_t cros_ec_read_status(const struct flashctx *flash)
-{
-	return 0;
-}
-
 static struct opaque_master cros_ec = {
 	.max_data_read	= EC_HOST_CMD_REGION_SIZE,
 	.max_data_write	= 64,
 	.probe		= cros_ec_probe_size,
 	.read		= cros_ec_read,
 	.write		= cros_ec_write,
-	.read_status	= cros_ec_read_status,
-	.write_status	= cros_ec_write_status,
 	.erase		= cros_ec_block_erase,
 };
 

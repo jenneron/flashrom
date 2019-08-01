@@ -300,15 +300,6 @@ static int linux_mtd_erase(struct flashctx *flash,
 	return 0;
 }
 
-static int linux_mtd_write_status(const struct flashctx *flash, int status)
-{
-	return 0;
-}
-static uint8_t linux_mtd_read_status(const struct flashctx *flash)
-{
-	return 0;
-}
-
 static struct opaque_master programmer_linux_mtd = {
 	/* max_data_{read,write} don't have any effect for this programmer */
 	.max_data_read	= MAX_DATA_UNSPECIFIED,
@@ -316,8 +307,6 @@ static struct opaque_master programmer_linux_mtd = {
 	.probe		= linux_mtd_probe,
 	.read		= linux_mtd_read,
 	.write		= linux_mtd_write,
-	.read_status	= linux_mtd_read_status,
-	.write_status	= linux_mtd_write_status,
 	.erase		= linux_mtd_erase,
 };
 
