@@ -748,9 +748,11 @@ static int dediprog_check_devicestring(void)
 	return 0;
 }
 
+#if 0 // FIXME: What happens for a auto_voltage if multiple compatible programmers are registered?
 static int dediprog_supply_voltages[] = {
 	0, 1800, 2500, 3500,
 };
+#endif
 
 static int dediprog_set_spi_flash_voltage_manual(int millivolt)
 {
@@ -795,20 +797,7 @@ static int dediprog_set_spi_flash_voltage_manual(int millivolt)
 	return 0;
 }
 
-static struct registered_master *find_compat_master()
-{
-	struct registered_master *mst;
-	unsigned j;
-
-	for (j = 0; j < registered_master_count; j++) {
-		mst = &registered_masters[j];
-		if (mst->spi.type == SPI_CONTROLLER_DEDIPROG)
-			return mst;
-	}
-
-	return NULL;
-}
-
+#if 0 // FIXME: What happens for a auto_voltage if multiple compatible programmers are registered?
 static int dediprog_set_spi_flash_voltage_auto(void)
 {
 	int i;
@@ -834,8 +823,10 @@ static int dediprog_set_spi_flash_voltage_auto(void)
 				}
 
 				clear_spi_id_cache();
-				struct registered_master *mst = find_compat_master();
-				if (probe_flash(mst, 0, &dummy, 0) < 0) {
+				// FIXME(quasisec): Passing NULL for the registered_master as we
+				// don't have something sensible in scope at this dispatch site.
+				// FIXME: What happens for a auto_voltage if multiple compatible programmers are registered?
+				if (probe_flash(NULL, 0, &dummy, 0) < 0) {
 					/* No dice, try next voltage supported by Dediprog. */
 					break;
 				}
@@ -852,13 +843,16 @@ static int dediprog_set_spi_flash_voltage_auto(void)
 
 	return 1;
 }
+#endif
 
 /* FIXME: ugly function signature */
 static int dediprog_set_spi_voltage(int millivolt, int probe)
 {
+#if 0 // FIXME: What happens for a auto_voltage if multiple compatible programmers are registered?
 	if (probe)
 		return dediprog_set_spi_flash_voltage_auto();
 	else
+#endif
 		return dediprog_set_spi_flash_voltage_manual(millivolt);
 }
 
