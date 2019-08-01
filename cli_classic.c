@@ -744,42 +744,21 @@ int main(int argc, char *argv[])
 		if (!force || !chip_to_probe) {
 			msg_gerr("Note: flashrom can never write if the flash chip isn't found automatically.\n");
 		}
+#if 1 // FIXME: What happens for a forced chip read if multiple compatible programmers are registered?
 		if (force && read_it && chip_to_probe) {
-			struct registered_master *mst;
-			int compatible_masters = 0;
-			msg_cinfo("Force read (-f -r -c) requested, pretending the chip is there:\n");
-			/* This loop just counts compatible controllers. */
-			for (j = 0; j < registered_master_count; j++) {
-				mst = &registered_masters[j];
-				/* chip is still set from the chip_to_probe earlier in this function. */
-				if (mst->buses_supported & chip->bustype)
-					compatible_masters++;
-			}
-			if (!compatible_masters) {
-				msg_cinfo("No compatible controller found for the requested flash chip.\n");
-				rc = 1;
-				goto cli_classic_silent_exit;
-			}
-			if (compatible_masters > 1)
-				msg_cinfo("More than one compatible controller found for the requested flash "
-									  "chip, using the first one.\n");
-			for (j = 0; j < registered_master_count; j++) {
-				mst = &registered_masters[j];
-				startchip = probe_flash(mst, 0, &flashes[0], 1);
-				if (startchip != -1)
-					break;
-			}
+			msg_ginfo("Force read (-f -r -c) requested, pretending the chip is there:\n");
+			// FIXME(quasisec): Passing in NULL for registered_master as we don't know how to handle
+			// the case of a forced chip with multiple compatible programmers that are registered.
+			startchip = probe_flash(NULL, 0, &flashes[0], 1);
 			if (startchip == -1) {
-				// FIXME: This should never happen! Ask for a bug report?
 				msg_gerr("Probing for flash chip '%s' failed.\n", chip_to_probe);
 				rc = 1;
 				goto cli_classic_silent_exit;
 			}
 			msg_ginfo("Please note that forced reads most likely contain garbage.\n");
-			rc = read_flash_to_file(&flashes[0], filename);
-			free(flashes[0].chip);
-			goto cli_classic_silent_exit;
+			return read_flash_to_file(&flashes[0], filename);
 		}
+#endif
 		// FIXME: flash writes stay enabled!
 		rc = 1;
 		goto cli_classic_silent_exit;
