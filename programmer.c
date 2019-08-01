@@ -26,6 +26,19 @@
 enum ich_chipset ich_generation = CHIPSET_ICH_UNKNOWN;
 int ich_dry_run;
 
+static const struct par_master par_master_none = {
+		.chip_readb		= noop_chip_readb,
+		.chip_readw		= fallback_chip_readw,
+		.chip_readl		= fallback_chip_readl,
+		.chip_readn		= fallback_chip_readn,
+		.chip_writeb		= noop_chip_writeb,
+		.chip_writew		= fallback_chip_writew,
+		.chip_writel		= fallback_chip_writel,
+		.chip_writen		= fallback_chip_writen,
+};
+
+const struct par_master *par_master = &par_master_none;
+
 /* No-op shutdown() for programmers which don't need special handling */
 int noop_shutdown(void)
 {
@@ -44,7 +57,13 @@ void fallback_unmap(void *virt_addr, size_t len)
 {
 }
 
-/* No-op chip_writeb() for parallel style drivers not supporting writes */
+/* No-op chip_writeb() for drivers not supporting addr/data pair accesses */
+uint8_t noop_chip_readb(const struct flashctx *flash, const chipaddr addr)
+{
+	return 0xff;
+}
+
+/* No-op chip_writeb() for drivers not supporting addr/data pair accesses */
 void noop_chip_writeb(const struct flashctx *flash, uint8_t val, chipaddr addr)
 {
 }
@@ -97,22 +116,10 @@ void fallback_chip_readn(const struct flashctx *flash, uint8_t *buf, chipaddr ad
 	return;
 }
 
-int register_par_master(const struct par_master *pgm, const enum chipbustype buses)
+void register_par_master(const struct par_master *pgm, const enum chipbustype buses)
 {
-	struct registered_master rmst;
-
-	if (!pgm->chip_writeb || !pgm->chip_writew || !pgm->chip_writel ||
-	    !pgm->chip_writen || !pgm->chip_readb || !pgm->chip_readw ||
-	    !pgm->chip_readl || !pgm->chip_readn) {
-		msg_perr("%s called with incomplete master definition. "
-			 "Please report a bug at flashrom@flashrom.org\n",
-			 __func__);
-		return ERROR_FLASHROM_BUG;
-	}
-
-	rmst.buses_supported = buses;
-	rmst.par = *pgm;
-	return register_master(&rmst);
+	par_master = pgm;
+	buses_supported |= buses;
 }
 
 /* The limit of 4 is totally arbitrary. */

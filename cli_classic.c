@@ -720,11 +720,15 @@ int main(int argc, char *argv[])
 		goto cli_classic_silent_exit;
 	}
 
+	// FIXME(quasisec): Hack to loop correctly while we have no actual
+	// registered masters. Remove once we use new dispatch mechanism!
+	const struct registered_master mst_nop;
+	register_master(&mst_nop);
+
 	for (j = 0; j < registered_master_count; j++) {
-		startchip = 0;
-		while (chipcount < ARRAY_SIZE(flashes)) {
+		for (i = 0; i < ARRAY_SIZE(flashes); i++) {
 			startchip = probe_flash(&registered_masters[j],
-						startchip, &flashes[chipcount], 0);
+						startchip, &flashes[i], 0);
 			if (startchip == -1)
 				break;
 			chipcount++;
@@ -744,7 +748,6 @@ int main(int argc, char *argv[])
 		if (!force || !chip_to_probe) {
 			msg_gerr("Note: flashrom can never write if the flash chip isn't found automatically.\n");
 		}
-#if 1 // FIXME: What happens for a forced chip read if multiple compatible programmers are registered?
 		if (force && read_it && chip_to_probe) {
 			msg_ginfo("Force read (-f -r -c) requested, pretending the chip is there:\n");
 			// FIXME(quasisec): Passing in NULL for registered_master as we don't know how to handle
@@ -758,7 +761,6 @@ int main(int argc, char *argv[])
 			msg_ginfo("Please note that forced reads most likely contain garbage.\n");
 			return read_flash_to_file(&flashes[0], filename);
 		}
-#endif
 		// FIXME: flash writes stay enabled!
 		rc = 1;
 		goto cli_classic_silent_exit;

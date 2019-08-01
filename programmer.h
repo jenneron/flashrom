@@ -463,7 +463,7 @@ int rayer_spi_init(void);
 #endif
 
 /* bitbang_spi.c */
-int bitbang_spi_init(const struct bitbang_spi_master *master);
+int register_spi_bitbang_master(const struct bitbang_spi_master *master);
 int bitbang_spi_shutdown(const struct bitbang_spi_master *master);
 
 /* buspirate_spi.c */
@@ -584,15 +584,15 @@ struct spi_master {
 	/* Optimized functions for this master */
 	int (*read)(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 	int (*write_256)(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
-	const void *data;
 };
 
+extern const struct spi_master *spi_master;
 int default_spi_send_command(const struct flashctx *flash, unsigned int writecnt, unsigned int readcnt,
 			     const unsigned char *writearr, unsigned char *readarr);
 int default_spi_send_multicommand(const struct flashctx *flash, struct spi_command *cmds);
 int default_spi_read(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 int default_spi_write_256(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
-int register_spi_master(const struct spi_master *programmer);
+void register_spi_master(const struct spi_master *programmer);
 
 /* ichspi.c */
 enum ich_chipset {
@@ -676,7 +676,8 @@ struct opaque_master {
 	int (*check_access) (const struct flashctx *flash, unsigned int start, unsigned int len, int read);
 	const void *data;
 };
-int register_opaque_master(const struct opaque_master *mst);
+extern struct opaque_master *opaque_master;
+void register_opaque_master(struct opaque_master *pgm);
 
 /* programmer.c */
 int noop_shutdown(void);
@@ -701,7 +702,8 @@ struct par_master {
 	void (*chip_readn) (const struct flashctx *flash, uint8_t *buf, const chipaddr addr, size_t len);
 	const void *data;
 };
-int register_par_master(const struct par_master *pgm, const enum chipbustype buses);
+extern const struct par_master *par_master;
+void register_par_master(const struct par_master *pgm, const enum chipbustype buses);
 struct registered_master {
 	enum chipbustype buses_supported;
 	union {

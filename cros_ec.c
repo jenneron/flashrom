@@ -537,7 +537,7 @@ int cros_ec_read(struct flashctx *flash, uint8_t *readarr,
 {
 	int rc = 0;
 	struct ec_params_flash_read p;
-	int maxlen = flash->mst->opaque.max_data_read;
+	int maxlen = opaque_master->max_data_read;
 	uint8_t buf[maxlen];
 	int offset = 0, count;
 
@@ -701,7 +701,7 @@ int cros_ec_write(struct flashctx *flash, const uint8_t *buf, unsigned int addr,
 	 * For chrome-os-partner:33035, to workaround the undersized
 	 * outdata buffer issue in kernel.
 	 */
-	real_write_size = min(flash->mst->opaque.max_data_write,
+	real_write_size = min(opaque_master->max_data_write,
 		cros_ec_priv->ideal_write_size);
 	packet = malloc(sizeof(p) + real_write_size);
 	if (!packet)
@@ -1183,7 +1183,7 @@ int cros_ec_probe_size(struct flashctx *flash) {
 
 	eraser = &flash->chip->block_erasers[0];
 	flash->chip->wp = &wp;
-	flash->chip->page_size = flash->mst->opaque.max_data_read;
+	flash->chip->page_size = opaque_master->max_data_read;
 
 	if (cmd_version < 2) {
 		struct ec_response_flash_info_1 info;

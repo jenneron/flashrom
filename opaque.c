@@ -1,7 +1,7 @@
 /*
  * This file is part of the flashrom project.
  *
- * Copyright (C) 2011,2013,2014 Carl-Daniel Hailfinger
+ * Copyright (C) 2011 Carl-Daniel Hailfinger
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,13 +11,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  */
 
 /*
- * Contains the opaque master framework.
- * An opaque master is a master which does not provide direct access
+ * Contains the opaque programmer framework.
+ * An opaque programmer is a programmer which does not provide direct access
  * to the flash chip and which abstracts all flash chip properties into a
- * master specific interface.
+ * programmer specific interface.
  */
 
 #include <stdint.h>
@@ -26,56 +27,102 @@
 #include "chipdrivers.h"
 #include "programmer.h"
 
+struct opaque_master opaque_master_none = {
+	.max_data_read = MAX_DATA_UNSPECIFIED,
+	.max_data_write = MAX_DATA_UNSPECIFIED,
+	.probe = NULL,
+	.read = NULL,
+	.write = NULL,
+	.read_status = NULL,
+	.write_status = NULL,
+	.erase = NULL,
+	.check_access = NULL,
+};
+
+struct opaque_master *opaque_master = &opaque_master_none;
+
 int probe_opaque(struct flashctx *flash)
 {
-	return flash->mst->opaque.probe(flash);
+	if (!opaque_master->probe) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 0;
+	}
+
+	return opaque_master->probe(flash);
 }
 
 int read_opaque(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len)
 {
-	return flash->mst->opaque.read(flash, buf, start, len);
+	if (!opaque_master->read) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 1;
+	}
+	return opaque_master->read(flash, buf, start, len);
 }
 
 int write_opaque(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len)
 {
-	return flash->mst->opaque.write(flash, buf, start, len);
+	if (!opaque_master->write) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 1;
+	}
+	return opaque_master->write(flash, buf, start, len);
 }
 
 int erase_opaque(struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen)
 {
-	return flash->mst->opaque.erase(flash, blockaddr, blocklen);
+	if (!opaque_master->erase) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 1;
+	}
+	return opaque_master->erase(flash, blockaddr, blocklen);
 }
 
 uint8_t read_status_opaque(const struct flashctx *flash)
 {
-	return flash->mst->opaque.read_status(flash);
+	if (!opaque_master->read_status) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 1;
+	}
+	return opaque_master->read_status(flash);
 }
 
 int write_status_opaque(const struct flashctx *flash, int status)
 {
-	return flash->mst->opaque.write_status(flash, status);
+	if (!opaque_master->write_status) {
+		msg_perr("%s called before register_opaque_master. "
+			 "Please report a bug at flashrom@flashrom.org\n",
+			 __func__);
+		return 1;
+	}
+	return opaque_master->write_status(flash, status);
 }
 
 int check_access_opaque(const struct flashctx *flash, unsigned int start, unsigned int len, int rw)
 {
-	if (flash->mst->opaque.check_access)
-		return flash->mst->opaque.check_access(flash, start, len, rw);
+	if (opaque_master->check_access)
+		return opaque_master->check_access(flash, start, len, rw);
 	return 1;
 }
 
-int register_opaque_master(const struct opaque_master *mst)
+void register_opaque_master(struct opaque_master *pgm)
 {
-	struct registered_master rmst;
-
-	if (!mst->probe || !mst->read || !mst->write || !mst->erase
-		|| !mst->read_status || !mst->write_status) {
-		msg_perr("%s called with incomplete master definition. "
-			 "Please report a bug at flashrom@flashrom.org\n",
+	if (!pgm->probe || !pgm->read || !pgm->write || !pgm->erase) {
+		msg_perr("%s called with one of probe/read/write/erase being "
+			 "NULL. Please report a bug at flashrom@flashrom.org\n",
 			 __func__);
-		return ERROR_FLASHROM_BUG;
+		return;
 	}
-	rmst.buses_supported = BUS_PROG;
-	rmst.opaque = *mst;
-
-	return register_master(&rmst);
+	opaque_master = pgm;
+	buses_supported |= BUS_PROG;
 }

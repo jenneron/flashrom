@@ -170,7 +170,7 @@ int rayer_spi_init(void)
 	/* Get the initial value before writing to any line. */
 	lpt_outbyte = INB(lpt_iobase);
 
-	if (bitbang_spi_init(&bitbang_spi_master_rayer))
+	if (register_spi_bitbang_master(&bitbang_spi_master_rayer))
 		return 1;
 
 	return 0;

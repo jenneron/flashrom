@@ -444,42 +444,42 @@ void programmer_unmap_flash_region(void *virt_addr, size_t len)
 
 void chip_writeb(const struct flashctx *flash, uint8_t val, chipaddr addr)
 {
-	flash->mst->par.chip_writeb(flash, val, addr);
+	par_master->chip_writeb(flash, val, addr);
 }
 
 void chip_writew(const struct flashctx *flash, uint16_t val, chipaddr addr)
 {
-	flash->mst->par.chip_writew(flash, val, addr);
+	par_master->chip_writew(flash, val, addr);
 }
 
 void chip_writel(const struct flashctx *flash, uint32_t val, chipaddr addr)
 {
-	flash->mst->par.chip_writel(flash, val, addr);
+	par_master->chip_writel(flash, val, addr);
 }
 
 void chip_writen(const struct flashctx *flash, uint8_t *buf, chipaddr addr, size_t len)
 {
-	flash->mst->par.chip_writen(flash, buf, addr, len);
+	par_master->chip_writen(flash, buf, addr, len);
 }
 
 uint8_t chip_readb(const struct flashctx *flash, const chipaddr addr)
 {
-	return flash->mst->par.chip_readb(flash, addr);
+	return par_master->chip_readb(flash, addr);
 }
 
 uint16_t chip_readw(const struct flashctx *flash, const chipaddr addr)
 {
-	return flash->mst->par.chip_readw(flash, addr);
+	return par_master->chip_readw(flash, addr);
 }
 
 uint32_t chip_readl(const struct flashctx *flash, const chipaddr addr)
 {
-	return flash->mst->par.chip_readl(flash, addr);
+	return par_master->chip_readl(flash, addr);
 }
 
 void chip_readn(const struct flashctx *flash, uint8_t *buf, chipaddr addr, size_t len)
 {
-	flash->mst->par.chip_readn(flash, buf, addr, len);
+	par_master->chip_readn(flash, buf, addr, len);
 }
 
 void programmer_delay(int usecs)
@@ -1132,7 +1132,7 @@ int probe_flash(struct registered_master *mst, int startchip,
 	for (chip = flash_list + startchip; chip && chip->name; chip++) {
 		if (chip_to_probe && strcmp(chip->name, chip_to_probe) != 0)
 			continue;
-		buses_common = mst->buses_supported & chip->bustype;
+		buses_common = buses_supported & chip->bustype;
 		if (!buses_common) {
 			msg_gspew("Probing for %s %s, %d kB: skipped. ",
 			         chip->vendor, chip->name, chip->total_size);
