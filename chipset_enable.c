@@ -984,6 +984,11 @@ static int enable_flash_ich_dc_spi(struct pci_dev *dev, const char *name,
 	case CHIPSET_TUNNEL_CREEK:
 		spibar_offset = 0x3020;
 		break;
+	case CHIPSET_100_SERIES_SUNRISE_POINT:
+	case CHIPSET_APL:
+	case CHIPSET_BAYTRAIL:
+		spibar_offset = 0x0;
+		break;
 	case CHIPSET_ICH9:
 	default:		/* Future version might behave the same */
 		spibar_offset = 0x3800;
