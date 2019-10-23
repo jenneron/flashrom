@@ -38,7 +38,6 @@
 #include <unistd.h>
 #include "flashchips.h"
 #include "fmap.h"
-#include "layout.h"
 #include "cros_ec.h"
 #include "cros_ec_lock.h"
 #include "cros_ec_commands.h"
@@ -458,14 +457,6 @@ int cros_ec_prepare(uint8_t *image, int size) {
 
 	if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) > 0) {
 		msg_pwarn("Skip jumping to RO\n");
-		return 0;
-	}
-	/* If not trying latest firmware and doing partial write, we don't have
-	 * to always jump to RO (which was designed for update with different
-	 * RO/RW sizes).
-	 */
-	if (!try_latest_firmware && get_num_include_args()) {
-		msg_pwarn("Skip jumping to RO due to partial write\n");
 		return 0;
 	}
 	/* Warning: before update, we jump the EC to RO copy. If you
