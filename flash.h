@@ -296,7 +296,7 @@ uint32_t chip_readl(const struct flashctx *flash, const chipaddr addr);
 void chip_readn(const struct flashctx *flash, uint8_t *buf, const chipaddr addr, size_t len);
 
 /* print.c */
-void print_supported(void);
+int print_supported(void);
 void print_supported_wiki(void);
 
 /* helpers.c */
