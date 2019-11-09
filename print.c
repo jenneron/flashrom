@@ -323,7 +323,7 @@ static int print_supported_chips(int host_controller)
 #if CONFIG_INTERNAL == 1
 static void print_supported_chipsets(void)
 {
-	int i, chipsetcount = 0;
+	unsigned int i, chipsetcount = 0;
 	const struct penable *c = chipset_enables;
 	size_t maxvendorlen = strlen("Vendor") + 1;
 	size_t maxchipsetlen = strlen("Chipset") + 1;
@@ -432,8 +432,48 @@ static void print_supported_boards_helper(const struct board_info *boards,
 }
 #endif
 
+static void print_supported_devs(const struct programmer_entry prog, const char *const type)
+{
+	const struct dev_entry *const devs = prog.devs.dev;
+	msg_ginfo("\nSupported %s devices for the %s programmer:\n", type, prog.name);
+	unsigned int maxvendorlen = strlen("Vendor") + 1;
+	unsigned int maxdevlen = strlen("Device") + 1;
+
+	unsigned int i;
+	for (i = 0; devs[i].vendor_name != NULL; i++) {
+		maxvendorlen = max(maxvendorlen, strlen(devs[i].vendor_name));
+		maxdevlen = max(maxdevlen, strlen(devs[i].device_name));
+	}
+	maxvendorlen++;
+	maxdevlen++;
+
+	msg_ginfo("Vendor");
+	for (i = strlen("Vendor"); i < maxvendorlen; i++)
+		msg_ginfo(" ");
+
+	msg_ginfo("Device");
+	for (i = strlen("Device"); i < maxdevlen; i++)
+		msg_ginfo(" ");
+
+	msg_ginfo(" %s IDs    Status\n", type);
+
+	for (i = 0; devs[i].vendor_name != NULL; i++) {
+		msg_ginfo("%s", devs[i].vendor_name);
+		unsigned int j;
+		for (j = strlen(devs[i].vendor_name); j < maxvendorlen; j++)
+			msg_ginfo(" ");
+		msg_ginfo("%s", devs[i].device_name);
+		for (j = strlen(devs[i].device_name); j < maxdevlen; j++)
+			msg_ginfo(" ");
+
+		msg_pinfo(" %04x:%04x  %s\n", devs[i].vendor_id, devs[i].device_id,
+			  test_state_to_text(devs[i].status));
+	}
+}
+
 int print_supported(void)
 {
+	unsigned int i;
 	/* Print the list of chips that use swseq */
 	if (print_supported_chips(0))
 		return 1;
@@ -451,9 +491,29 @@ int print_supported(void)
 	msg_ginfo("\n");
 	print_supported_boards_helper(boards_known, "boards");
 	msg_ginfo("\n");
-	print_supported_boards_helper(laptops_known, "laptops");
+	print_supported_boards_helper(laptops_known, "mobile devices");
 #endif
-
+	for (i = 0; i < PROGRAMMER_INVALID; i++) {
+		const struct programmer_entry prog = programmer_table[i];
+		switch (prog.type) {
+		case USB:
+			print_supported_devs(prog, "USB");
+			break;
+		case PCI:
+			print_supported_devs(prog, "PCI");
+			break;
+		case OTHER:
+			if (prog.devs.note != NULL) {
+				msg_ginfo("\nSupported devices for the %s programmer:\n", prog.name);
+				msg_ginfo("%s", prog.devs.note);
+			}
+			break;
+		default:
+			msg_gerr("\n%s: %s: Uninitialized programmer type! Please report a bug at "
+				 "flashrom@flashrom.org\n", __func__, prog.name);
+			break;
+		}
+	}
 	return 0;
 }
 
