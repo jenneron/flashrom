@@ -566,6 +566,8 @@ extern const int spi_master_count;
 #define MAX_DATA_WRITE_UNLIMITED 256
 
 #define SPI_MASTER_4BA			(1U << 0)  /**< Can handle 4-byte addresses */
+#define SPI_MASTER_NO_4BA_MODES		(1U << 1)  /**< Compatibility modes (i.e. extended address
+						        register, 4BA mode switch) don't work */
 
 struct spi_master {
 	enum spi_controller type;
@@ -787,6 +789,17 @@ enum SP_PIN {
 void sp_set_pin(enum SP_PIN pin, int val);
 int sp_get_pin(enum SP_PIN pin);
 
+/* spi_master feature checks */
+static inline bool spi_master_4ba(const struct flashctx *const flash)
+{
+	return flash->mst->buses_supported & BUS_SPI &&
+		flash->mst->spi.features & SPI_MASTER_4BA;
+}
+static inline bool spi_master_no_4ba_modes(const struct flashctx *const flash)
+{
+	return flash->mst->buses_supported & BUS_SPI &&
+		flash->mst->spi.features & SPI_MASTER_NO_4BA_MODES;
+}
 
 /* usbdev.c */
 struct libusb_device_handle;
@@ -795,12 +808,5 @@ struct libusb_device_handle *usb_dev_get_by_vid_pid_serial(
 		struct libusb_context *usb_ctx, uint16_t vid, uint16_t pid, const char *serialno);
 struct libusb_device_handle *usb_dev_get_by_vid_pid_number(
 		struct libusb_context *usb_ctx, uint16_t vid, uint16_t pid, unsigned int num);
-
-/* spi_master feature checks */
-static inline bool spi_master_4ba(const struct flashctx *const flash)
-{
-	return flash->mst->buses_supported & BUS_SPI &&
-		flash->mst->spi.features & SPI_MASTER_4BA;
-}
 
 #endif				/* !__PROGRAMMER_H__ */
