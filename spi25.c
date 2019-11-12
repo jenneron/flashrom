@@ -460,6 +460,18 @@ int spi_prettyprint_status_register(struct flashctx *flash)
 	return 0;
 }
 
+static void spi_prettyprint_status_register_hex(uint8_t status)
+{
+        msg_cdbg("Chip status register is 0x%02x.\n", status);
+}
+
+
+int spi_prettyprint_status_register_plain(struct flashctx *flash)
+{
+        uint8_t status = spi_read_status_register(flash);
+        spi_prettyprint_status_register_hex(status);
+        return 0;
+}
 int spi_chip_erase_60(struct flashctx *flash)
 {
 	int result;
