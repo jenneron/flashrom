@@ -87,6 +87,9 @@ int spi_disable_blockprotect_at25f(struct flashctx *flash);
 int spi_disable_blockprotect_at25fs010(struct flashctx *flash);
 int spi_disable_blockprotect_at25fs040(struct flashctx *flash);
 
+/* spi25.c */
+int spi_prettyprint_status_register_plain(struct flashctx *flash);
+
 /* 82802ab.c */
 uint8_t wait_82802ab(struct flashctx *flash);
 int probe_82802ab(struct flashctx *flash);
