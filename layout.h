@@ -21,10 +21,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Types and macros regarding the maximum flash space size supported by generic code. */
-typedef uint32_t chipoff_t; /* Able to store any addressable offset within a supported flash memory. */
-typedef uint32_t chipsize_t; /* Able to store the number of bytes of any supported flash memory. */
-
 #define MAX_ROMLAYOUT	64
 
 struct romentry {

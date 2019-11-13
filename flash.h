@@ -246,14 +246,9 @@ struct flashchip {
 /* struct flashctx must always contain struct flashchip at the beginning. */
 struct flashctx {
 	struct flashchip *chip;
-	/* FIXME: The memory mappings should be saved in a more structured way. */
-	/* The physical_* fields store the respective addresses in the physical address space of the CPU. */
-	uintptr_t physical_memory;
-	/* The virtual_* fields store where the respective physical address is mapped into flashrom's address
-	 * space. A value equivalent to (chipaddr)ERROR_PTR indicates an invalid mapping (or none at all). */
+
 	chipaddr virtual_memory;
-	/* Some flash devices have an additional register space; semantics are like above. */
-	uintptr_t physical_registers;
+	/* Some flash devices have an additional register space. */
 	chipaddr virtual_registers;
 	struct registered_master *mst;
 
