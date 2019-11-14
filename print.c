@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Uwe Hermann <uwe@hermann-uwe.de>
  * Copyright (C) 2009 Carl-Daniel Hailfinger
+ * Copyright (C) 2011-2013 Stefan Tauner
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,14 +14,26 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
  */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include "flash.h"
 #include "programmer.h"
+
+static const char *test_state_to_text(enum test_state test_state)
+{
+	switch (test_state) {
+	case OK: return "OK";
+	case BAD: return "Not working";
+	case NA: return "N/A";
+	case DEP: return "Config-dependent";
+	case NT:
+	default: return "Untested";
+	}
+}
 
 static void print_supported_chips(int host_controller)
 {
@@ -109,7 +122,7 @@ static void print_supported_chips(int host_controller)
 	msg_ginfo("Known");
 	for (i = 0; i < border; i++)
 		msg_ginfo(" ");
-	msg_ginfo(" Size");
+	msg_ginfo(" Size ");
 	for (i = 0; i < border; i++)
 		msg_ginfo(" ");
 
@@ -127,12 +140,12 @@ static void print_supported_chips(int host_controller)
 	msg_ginfo("Broken");
 	for (i = 0; i < border; i++)
 		msg_ginfo(" ");
-	msg_ginfo("[kB]");
+	msg_ginfo("[kB] ");
 	for (i = 0; i < border + maxtypelen; i++)
 		msg_ginfo(" ");
 	msg_gdbg("range [V]");
 	msg_ginfo("\n\n");
-	msg_ginfo("(P = PROBE, R = READ, E = ERASE, W = WRITE)\n\n");
+	msg_ginfo("(P = PROBE, R = READ, E = ERASE, W = WRITE, - = N/A)\n\n");
 
 	for (f = flash; f->name != NULL; f++) {
 		/* Don't print generic entries. */
@@ -299,18 +312,18 @@ static void print_supported_chipsets(void)
 {
 	int i, chipsetcount = 0;
 	const struct penable *c = chipset_enables;
-	int maxvendorlen = strlen("Vendor") + 1;
-	int maxchipsetlen = strlen("Chipset") + 1;
+	size_t maxvendorlen = strlen("Vendor") + 1;
+	size_t maxchipsetlen = strlen("Chipset") + 1;
 
 	for (c = chipset_enables; c->vendor_name != NULL; c++) {
 		chipsetcount++;
-		maxvendorlen = max(maxvendorlen, strlen(c->vendor_name));
-		maxchipsetlen = max(maxchipsetlen, strlen(c->device_name));
+		maxvendorlen = MAX(maxvendorlen, strlen(c->vendor_name));
+		maxchipsetlen = MAX(maxchipsetlen, strlen(c->device_name));
 	}
 	maxvendorlen++;
 	maxchipsetlen++;
 
-	msg_ginfo("Supported chipsets (total: %d):\n\n", chipsetcount);
+	msg_ginfo("Supported chipsets (total: %u):\n\n", chipsetcount);
 
 	msg_ginfo("Vendor");
 	for (i = strlen("Vendor"); i < maxvendorlen; i++)
@@ -320,7 +333,7 @@ static void print_supported_chipsets(void)
 	for (i = strlen("Chipset"); i < maxchipsetlen; i++)
 		msg_ginfo(" ");
 
-	msg_ginfo("PCI IDs   State\n\n");
+	msg_ginfo("PCI IDs    Status\n\n");
 
 	for (c = chipset_enables; c->vendor_name != NULL; c++) {
 		msg_ginfo("%s", c->vendor_name);
@@ -329,33 +342,37 @@ static void print_supported_chipsets(void)
 		msg_ginfo("%s", c->device_name);
 		for (i = 0; i < maxchipsetlen - strlen(c->device_name); i++)
 			msg_ginfo(" ");
-		msg_ginfo("%04x:%04x%s\n", c->vendor_id, c->device_id,
-		       (c->status == OK) ? "" : " (untested)");
+		msg_ginfo("%04x:%04x  %s\n", c->vendor_id, c->device_id,
+		       test_state_to_text(c->status));
 	}
 }
 
 static void print_supported_boards_helper(const struct board_info *boards,
 				   const char *devicetype)
 {
-	int i, boardcount_good = 0, boardcount_bad = 0;
+	unsigned int i;
+	unsigned int boardcount_good = 0, boardcount_bad = 0, boardcount_nt = 0;
 	const struct board_match *e = board_matches;
 	const struct board_info *b = boards;
-	int maxvendorlen = strlen("Vendor") + 1;
-	int maxboardlen = strlen("Board") + 1;
+	size_t maxvendorlen = strlen("Vendor") + 1;
+	size_t maxboardlen = strlen("Board") + 1;
 
 	for (b = boards; b->vendor != NULL; b++) {
 		maxvendorlen = max(maxvendorlen, strlen(b->vendor));
 		maxboardlen = max(maxboardlen, strlen(b->name));
-		if (b->working)
+		if (b->working == OK)
 			boardcount_good++;
+		else if (b->working == NT)
+			boardcount_nt++;
 		else
 			boardcount_bad++;
 	}
 	maxvendorlen++;
 	maxboardlen++;
 
-	msg_ginfo("Known %s (good: %d, bad: %d):\n\n",
-	       devicetype, boardcount_good, boardcount_bad);
+	msg_ginfo("%d known %s (good: %d, untested: %d, bad: %d):\n\n",
+		  boardcount_good + boardcount_nt + boardcount_bad,
+		  devicetype, boardcount_good, boardcount_nt, boardcount_bad);
 
 	msg_ginfo("Vendor");
 	for (i = strlen("Vendor"); i < maxvendorlen; i++)
@@ -377,7 +394,15 @@ static void print_supported_boards_helper(const struct board_info *boards,
 		msg_ginfo("%s", b->name);
 		for (i = 0; i < maxboardlen - strlen(b->name); i++)
 			msg_ginfo(" ");
-		msg_ginfo((b->working) ? "OK      " : "BAD     ");
+
+		switch (b->working) {
+		case OK:  msg_ginfo("OK      "); break;
+		case NT:  msg_ginfo("NT      "); break;
+		case DEP: msg_ginfo("DEP     "); break;
+		case NA:  msg_ginfo("N/A     "); break;
+		case BAD:
+		default:  msg_ginfo("BAD     "); break;
+		}
 
 		for (e = board_matches; e->vendor_name != NULL; e++) {
 			if (strcmp(e->vendor_name, b->vendor)
@@ -403,6 +428,7 @@ void print_supported(void)
 
 	msg_ginfo("\nSupported programmers:\n");
 	list_programmers_linebreak(0, 80, 0);
+	msg_ginfo("\n");
 #if CONFIG_INTERNAL == 1
 	msg_ginfo("\nSupported devices for the %s programmer:\n\n",
 	       programmer_table[PROGRAMMER_INTERNAL].name);
