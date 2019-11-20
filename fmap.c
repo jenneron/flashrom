@@ -34,6 +34,7 @@
  * This is ported from the flashmap utility: http://flashmap.googlecode.com
  */
 
+#include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +43,46 @@
 #include "flash.h"
 #include "fmap.h"
 #include "search.h"
+
+static size_t fmap_size(const struct fmap *fmap)
+{
+	return sizeof(*fmap) + (fmap->nareas * sizeof(struct fmap_area));
+}
+
+static int is_valid_fmap(const struct fmap *fmap)
+{
+	if (memcmp(fmap, FMAP_SIGNATURE, strlen(FMAP_SIGNATURE)) != 0)
+		return 0;
+	/* strings containing the magic tend to fail here */
+	if (fmap->ver_major > FMAP_VER_MAJOR)
+		return 0;
+	if (fmap->ver_minor > FMAP_VER_MINOR)
+		return 0;
+	/* a basic consistency check: flash address space size should be larger
+	 * than the size of the fmap data structure */
+	if (fmap->size < fmap_size(fmap))
+		return 0;
+
+	/* fmap-alikes along binary data tend to fail on having a valid,
+	 * null-terminated string in the name field.*/
+	int i;
+	for (i = 0; i < FMAP_STRLEN; i++) {
+		if (fmap->name[i] == 0)
+			break;
+		if (!isgraph(fmap->name[i]))
+			return 0;
+		if (i == FMAP_STRLEN - 1) {
+			/* name is specified to be null terminated single-word string
+			 * without spaces. We did not break in the 0 test, we know it
+			 * is a printable spaceless string but we're seeing FMAP_STRLEN
+			 * symbols, which is one too many.
+			 */
+			 return 0;
+		}
+	}
+	return 1;
+
+}
 
 int fmap_find(void *source_handle,
 	      int (*read_chunk)(void *handle,
@@ -52,17 +93,17 @@ int fmap_find(void *source_handle,
 	      loff_t offset,
 	      uint8_t **buf)
 {
-	int fmap_size;
+	int buf_size;
 
-	if (memcmp(&fmap->signature, FMAP_SIGNATURE, sizeof(fmap->signature)))
+	if (!is_valid_fmap(fmap))
 		return 0;
 
-	fmap_size = sizeof(*fmap) + fmap->nareas * sizeof(struct fmap_area);
-	*buf = malloc(fmap_size);
+	buf_size = fmap_size(fmap);
+	*buf = malloc(buf_size);
 
-	if (read_chunk(source_handle, *buf, offset, fmap_size)) {
+	if (read_chunk(source_handle, *buf, offset, buf_size)) {
 		msg_gdbg("[L%d] failed to read %d bytes at offset 0x%lx\n",
-			 __LINE__, fmap_size, (unsigned long)offset);
+			 __LINE__, buf_size, (unsigned long)offset);
 		return -1;
 	}
 
@@ -72,6 +113,7 @@ int fmap_find(void *source_handle,
 /* Like fmap_find, but give a memory location to search FMAP. */
 struct fmap *fmap_find_in_memory(uint8_t *image, int size)
 {
+	struct fmap *ret;
 	long int offset = 0;
 	uint64_t sig;
 
@@ -79,7 +121,11 @@ struct fmap *fmap_find_in_memory(uint8_t *image, int size)
 
 	for (offset = 0; offset < size; offset++) {
 		if (!memcmp(&image[offset], &sig, sizeof(sig))) {
-			return (struct fmap *)&image[offset];
+			ret = (struct fmap *)&image[offset];
+			if (is_valid_fmap(ret))
+				return ret;
+			msg_gdbg("%s: FMAP signature with invalid data "
+				 "found in +%#lx\n", __func__, offset);
 		}
 	}
 	return NULL;
