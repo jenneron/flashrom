@@ -871,6 +871,7 @@ static int w25_range_table(const struct flashctx *flash,
 			*w25q_ranges = w25q64_ranges;
 			*num_entries = ARRAY_SIZE(w25q64_ranges);
 			break;
+		case WINBOND_NEX_W25Q128_DTR:
 		case WINBOND_NEX_W25Q128_V_M:
 		case WINBOND_NEX_W25Q128_V:
 		case WINBOND_NEX_W25Q128_W:
