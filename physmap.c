@@ -16,7 +16,6 @@
  * GNU General Public License for more details.
  */
 
-#include <inttypes.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -27,7 +26,6 @@
 #include "programmer.h"
 #include "hwaccess.h"
 
-/* Do we need any file access or ioctl for physmap or MSR? */
 #if !defined(__DJGPP__) && !defined(__LIBPAYLOAD__)
 /* No file access needed/possible to get mmap access permissions or access MSR. */
 #include <sys/stat.h>
@@ -99,7 +97,7 @@ static void *sys_physmap(uintptr_t phys_addr, size_t len)
 #define sys_physmap_rw_uncached	sys_physmap
 #define sys_physmap_ro_cached	sys_physmap
 
-void sys_physunmap_unaligned(void *virt_addr, size_t len)
+static void sys_physunmap_unaligned(void *virt_addr, size_t len)
 {
 	__dpmi_meminfo mi;
 
@@ -128,16 +126,7 @@ void *sys_physmap(uintptr_t phys_addr, size_t len)
 #define sys_physmap_rw_uncached	sys_physmap
 #define sys_physmap_ro_cached	sys_physmap
 
-int setup_cpu_msr(int cpu)
-{
-	return 0;
-}
-
-void cleanup_cpu_msr(void)
-{
-}
-
-void sys_physunmap_unaligned(void *virt_addr, size_t len)
+static void sys_physunmap_unaligned(void *virt_addr, size_t len)
 {
 }
 #elif defined(__MACH__) && defined(__APPLE__)
@@ -158,7 +147,7 @@ static void *sys_physmap(uintptr_t phys_addr, size_t len)
 #define sys_physmap_rw_uncached	sys_physmap
 #define sys_physmap_ro_cached	sys_physmap
 
-void sys_physunmap_unaligned(void *virt_addr, size_t len)
+static void sys_physunmap_unaligned(void *virt_addr, size_t len)
 {
 	unmap_physical(virt_addr, len);
 }
@@ -188,8 +177,7 @@ static void *sys_physmap_rw_uncached(uintptr_t phys_addr, size_t len)
 		}
 	}
 
-	virt_addr = mmap(NULL, len, PROT_WRITE | PROT_READ, MAP_SHARED,
-			 fd_mem, (off_t)phys_addr);
+	virt_addr = mmap(NULL, len, PROT_WRITE | PROT_READ, MAP_SHARED, fd_mem, (off_t)phys_addr);
 	return MAP_FAILED == virt_addr ? ERROR_PTR : virt_addr;
 }
 
@@ -208,17 +196,12 @@ static void *sys_physmap_ro_cached(uintptr_t phys_addr, size_t len)
 		}
 	}
 
-	virt_addr = mmap(NULL, len, PROT_READ, MAP_SHARED,
-			 fd_mem_cached, (off_t)phys_addr);
+	virt_addr = mmap(NULL, len, PROT_READ, MAP_SHARED, fd_mem_cached, (off_t)phys_addr);
 	return MAP_FAILED == virt_addr ? ERROR_PTR : virt_addr;
 }
 
-void sys_physunmap_unaligned(void *virt_addr, size_t len)
+static void sys_physunmap_unaligned(void *virt_addr, size_t len)
 {
-	if (len == 0) {
-		msg_pspew("Not unmapping zero size at %p\n", virt_addr);
-		return;
-	}
 	munmap(virt_addr, len);
 }
 #endif
@@ -380,6 +363,9 @@ void *physmap_ro_unaligned(const char *descr, uintptr_t phys_addr, size_t len)
 	return physmap_common(descr, phys_addr, len, PHYSM_RO, PHYSM_NOCLEANUP, PHYSM_EXACT);
 }
 
+#if CONFIG_INTERNAL == 1
+/* MSR abstraction implementations for Linux, OpenBSD, FreeBSD/Dragonfly, OSX, libpayload
+ * and a non-working default implementation on the bottom. See also hwaccess.h for some (re)declarations. */
 #if defined(__i386__) || defined(__x86_64__)
 
 #ifdef __linux__
@@ -479,8 +465,83 @@ void cleanup_cpu_msr(void)
 	/* Clear MSR file descriptor. */
 	fd_msr = -1;
 }
-#else
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#elif defined(__OpenBSD__) && defined (__i386__) /* This does only work for certain AMD Geode LX systems see amdmsr(4). */
+#include <sys/ioctl.h>
+#include <machine/amdmsr.h>
+
+static int fd_msr = -1;
+
+msr_t rdmsr(int addr)
+{
+	struct amdmsr_req args;
+
+	msr_t msr = { 0xffffffff, 0xffffffff };
+
+	args.addr = (uint32_t)addr;
+
+	if (ioctl(fd_msr, RDMSR, &args) < 0) {
+		msg_perr("Error while executing RDMSR ioctl: %s\n", strerror(errno));
+		close(fd_msr);
+		exit(1);
+	}
+
+	msr.lo = args.val & 0xffffffff;
+	msr.hi = args.val >> 32;
+
+	return msr;
+}
+
+int wrmsr(int addr, msr_t msr)
+{
+	struct amdmsr_req args;
+
+	args.addr = addr;
+	args.val = (((uint64_t)msr.hi) << 32) | msr.lo;
+
+	if (ioctl(fd_msr, WRMSR, &args) < 0) {
+		msg_perr("Error while executing WRMSR ioctl: %s\n", strerror(errno));
+		close(fd_msr);
+		exit(1);
+	}
+
+	return 0;
+}
+
+int setup_cpu_msr(int cpu)
+{
+	char msrfilename[64];
+	memset(msrfilename, 0, sizeof(msrfilename));
+	snprintf(msrfilename, sizeof(msrfilename), "/dev/amdmsr");
+
+	if (fd_msr != -1) {
+		msg_pinfo("MSR was already initialized\n");
+		return -1;
+	}
+
+	fd_msr = open(msrfilename, O_RDWR);
+
+	if (fd_msr < 0) {
+		msg_perr("Error while opening %s: %s\n", msrfilename, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+void cleanup_cpu_msr(void)
+{
+	if (fd_msr == -1) {
+		msg_pinfo("No MSR initialized.\n");
+		return;
+	}
+
+	close(fd_msr);
+
+	/* Clear MSR file descriptor. */
+	fd_msr = -1;
+}
+
+#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 #include <sys/ioctl.h>
 
 typedef struct {
@@ -591,6 +652,14 @@ int libpayload_wrmsr(int addr, msr_t msr)
 	return 0;
 }
 
+int setup_cpu_msr(int cpu)
+{
+	return 0;
+}
+
+void cleanup_cpu_msr(void)
+{
+}
 #else
 /* default MSR implementation */
 msr_t rdmsr(int addr)
@@ -615,8 +684,8 @@ void cleanup_cpu_msr(void)
 {
 	// Nothing, yet.
 }
-#endif
 #endif // OS switches for MSR code
 #else // x86
 /* Does MSR exist on non-x86 architectures? */
 #endif // arch switches for MSR code
+#endif // CONFIG_INTERNAL == 1
