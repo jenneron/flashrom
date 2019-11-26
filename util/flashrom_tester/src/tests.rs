@@ -33,7 +33,7 @@
 // Software Foundation.
 //
 
-use super::mosys;
+use super::cros_sysinfo;
 use super::tester::{self, OutputFormat, TestCase, TestEnv, TestResult};
 use super::utils::{self, LayoutNames};
 use flashrom::{FlashChip, Flashrom, FlashromCmd};
@@ -153,8 +153,8 @@ pub fn generic<'a, TN: Iterator<Item = &'a str>>(
         .map(|x| format!("vendor=\"{}\" name=\"{}\"", x.0, x.1))
         .unwrap_or("<Unknown chip>".into());
     let os_rel = sys_info::os_release().unwrap_or("<Unknown OS>".to_string());
-    let system_info = mosys::system_info().unwrap_or("<Unknown System>".to_string());
-    let bios_info = mosys::bios_info().unwrap_or("<Unknown BIOS>".to_string());
+    let system_info = cros_sysinfo::system_info().unwrap_or("<Unknown System>".to_string());
+    let bios_info = cros_sysinfo::bios_info().unwrap_or("<Unknown BIOS>".to_string());
 
     let meta_data = tester::ReportMetaData {
         chip_name: chip_name,
@@ -241,7 +241,7 @@ fn elog_sanity_test(env: &mut TestEnv) -> TestResult {
     // mosys reads the flash, it should be back in the golden state
     env.ensure_golden()?;
     // Output is one event per line, drop empty lines in the interest of being defensive.
-    let event_count = mosys::eventlog_list()?
+    let event_count = cros_sysinfo::eventlog_list()?
         .lines()
         .filter(|l| !l.is_empty())
         .count();

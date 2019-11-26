@@ -35,11 +35,21 @@
 
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::io::{Error, ErrorKind, Result as IoResult};
+use std::io::Result as IoResult;
 use std::process::{Command, Stdio};
 
+use super::utils;
+
 pub fn system_info() -> IoResult<String> {
-    mosys_dispatch(&["-l", "smbios", "info", "system"])
+    let output = Command::new("/usr/sbin/dmidecode")
+        .args(&["-q", "-t1"])
+        .stdin(Stdio::null())
+        .output()?;
+
+    if !output.status.success() {
+        return Err(utils::translate_command_error(&output));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 pub fn bios_info() -> IoResult<String> {
@@ -58,25 +68,7 @@ fn mosys_dispatch<S: AsRef<OsStr> + Debug>(args: &[S]) -> IoResult<String> {
         .stdin(Stdio::null())
         .output()?;
     if !output.status.success() {
-        // There is two cases on failure;
-        //  i. ) A bad exit code,
-        //  ii.) A SIG killed us.
-        match output.status.code() {
-            Some(code) => {
-                let e = format!(
-                    "{}\nExited with error code: {}",
-                    String::from_utf8_lossy(&output.stderr),
-                    code
-                );
-                return Err(Error::new(ErrorKind::Other, e));
-            }
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "Process terminated by a signal".to_string(),
-                ))
-            }
-        }
+        return Err(utils::translate_command_error(&output));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();

@@ -134,17 +134,7 @@ pub fn collect_crosssystem() -> Result<String, String> {
     };
 
     if !cmd.status.success() {
-        // There is two cases on failure;
-        //  i. ) A bad exit code,
-        //  ii.) A SIG killed us.
-        match cmd.status.code() {
-            Some(code) => {
-                return Err(format!("Exited with error code: {}", code));
-            }
-            None => {
-                return Err("Process terminated by a signal".into());
-            }
-        }
+        return Err(translate_command_error(&cmd).to_string());
     };
 
     Ok(String::from_utf8_lossy(&cmd.stdout).into_owned())
@@ -180,6 +170,27 @@ fn parse_crosssystem(s: &str) -> Result<(Vec<&str>, bool), &'static str> {
             }
         }
         Err(_) => return Err("Cannot parse state value"),
+    }
+}
+
+pub fn translate_command_error(output: &std::process::Output) -> std::io::Error {
+    use std::io::{Error, ErrorKind};
+    // There is two cases on failure;
+    //  i. ) A bad exit code,
+    //  ii.) A SIG killed us.
+    match output.status.code() {
+        Some(code) => {
+            let e = format!(
+                "{}\nExited with error code: {}",
+                String::from_utf8_lossy(&output.stderr),
+                code
+            );
+            Error::new(ErrorKind::Other, e)
+        }
+        None => Error::new(
+            ErrorKind::Other,
+            "Process terminated by a signal".to_string(),
+        ),
     }
 }
 
