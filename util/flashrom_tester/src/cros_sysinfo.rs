@@ -40,9 +40,9 @@ use std::process::{Command, Stdio};
 
 use super::utils;
 
-pub fn system_info() -> IoResult<String> {
+fn dmidecode_dispatch<S: AsRef<OsStr>>(args: &[S]) -> IoResult<String> {
     let output = Command::new("/usr/sbin/dmidecode")
-        .args(&["-q", "-t1"])
+        .args(args)
         .stdin(Stdio::null())
         .output()?;
 
@@ -52,8 +52,12 @@ pub fn system_info() -> IoResult<String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+pub fn system_info() -> IoResult<String> {
+    dmidecode_dispatch(&["-q", "-t1"])
+}
+
 pub fn bios_info() -> IoResult<String> {
-    mosys_dispatch(&["-l", "smbios", "info", "bios"])
+    dmidecode_dispatch(&["-q", "-t0"])
 }
 
 pub fn eventlog_list() -> Result<String, std::io::Error> {
