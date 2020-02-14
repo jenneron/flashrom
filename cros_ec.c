@@ -38,7 +38,6 @@
 #include <unistd.h>
 #include "flashchips.h"
 #include "fmap.h"
-#include "layout.h"
 #include "cros_ec.h"
 #include "cros_ec_lock.h"
 #include "cros_ec_commands.h"
@@ -399,7 +398,7 @@ static int cros_ec_wp_is_enabled(void)
  */
 int cros_ec_prepare(uint8_t *image, int size) {
 	struct fmap *fmap;
-	int i, j, wp_status, can_skip_ro_jump = 0;
+	int i, j, wp_status;
 
 	if (!(cros_ec_priv && cros_ec_priv->detected)) return 0;
 
@@ -451,7 +450,6 @@ int cros_ec_prepare(uint8_t *image, int size) {
 						fa->name);
 					memcpy(&fwcopy[j], fa, sizeof(*fa));
 					fwcopy[j].flags = 1;  // mark as new
-					can_skip_ro_jump = 1;
 				}
 			}
 		}
@@ -459,15 +457,6 @@ int cros_ec_prepare(uint8_t *image, int size) {
 
 	if (ec_check_features(EC_FEATURE_EXEC_IN_RAM) > 0) {
 		msg_pwarn("Skip jumping to RO\n");
-		return 0;
-	}
-	/* If not trying latest firmware and doing partial write, we don't have
-	 * to always jump to RO (which was designed for update with different
-	 * RO/RW sizes).
-	 */
-	if (can_skip_ro_jump && !try_latest_firmware &&
-	    get_num_include_args() > 0) {
-		msg_pwarn("Skip jumping to RO due to partial write\n");
 		return 0;
 	}
 	/* Warning: before update, we jump the EC to RO copy. If you
