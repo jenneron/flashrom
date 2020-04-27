@@ -32,9 +32,6 @@
 #undef max
 #endif
 
-/* Are timers broken? */
-extern int broken_timer;
-
 #define KiB (1024)
 #define MiB (1024 * KiB)
 
