@@ -868,12 +868,6 @@ FEATURE_CFLAGS += -D'CONFIG_PRINT_WIKI=1'
 CLI_OBJS += print_wiki.o
 endif
 
-ifeq ($(CONFIG_USE_OS_TIMER), yes)
-FEATURE_CFLAGS += -D'CONFIG_USE_OS_TIMER=1'
-else
-FEATURE_CFLAGS += -D'CONFIG_USE_OS_TIMER=0'
-endif
-
 FEATURE_CFLAGS += $(call debug_shell,grep -q "UTSNAME := yes" .features && printf "%s" "-D'HAVE_UTSNAME=1'")
 
 # We could use PULLED_IN_LIBS, but that would be ugly.

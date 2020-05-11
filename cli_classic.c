@@ -312,20 +312,10 @@ int main(int argc, char *argv[])
 		case 'r':
 			cli_classic_validate_singleop(&operation_specified);
 			read_it = 1;
-#if CONFIG_USE_OS_TIMER == 0
-			/* horrible workaround for excess time spent in
-			 * ichspi.c code: */
-			broken_timer = 1;
-#endif
 			break;
 		case 'w':
 			cli_classic_validate_singleop(&operation_specified);
 			write_it = 1;
-#if CONFIG_USE_OS_TIMER == 0
-			/* horrible workaround for excess time spent in
-			 * ichspi.c code: */
-			broken_timer = 1;
-#endif
 			break;
 		case 'v':
 			//FIXME: gracefully handle superfluous -v
@@ -334,11 +324,6 @@ int main(int argc, char *argv[])
 				cli_classic_abort_usage("--verify and --noverify are mutually exclusive. Aborting.\n");
 			}
 			if (!verify_it) verify_it = VERIFY_FULL;
-#if CONFIG_USE_OS_TIMER == 0
-			/* horrible workaround for excess time spent in
-			 * ichspi.c code: */
-			broken_timer = 1;
-#endif
 			break;
 		case 'n':
 			if (verify_it) {
@@ -357,11 +342,6 @@ int main(int argc, char *argv[])
 		case 'E':
 			cli_classic_validate_singleop(&operation_specified);
 			erase_it = 1;
-#if CONFIG_USE_OS_TIMER == 0
-			/* horrible workaround for excess time spent in
-			 * ichspi.c code: */
-			broken_timer = 1;
-#endif
 			break;
 		case 'f':
 			force = 1;
