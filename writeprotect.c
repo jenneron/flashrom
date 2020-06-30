@@ -991,6 +991,17 @@ static int w25_range_table(const struct flashctx *flash,
 			*descrs = en25q128_ranges;
 			*num_entries = ARRAY_SIZE(en25q128_ranges);
 			break;
+		case EON_EN25QH128:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq128_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq128_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
+			}
+			break;
 		case EON_EN25S64:
 			*descrs = en25s64_ranges;
 			*num_entries = ARRAY_SIZE(en25s64_ranges);
