@@ -707,8 +707,16 @@ int main(int argc, char *argv[])
 				ret = 1;
 				goto out_shutdown;
 			}
+			if (map_flash(&flashes[0]) != 0) {
+				free(flashes[0].chip);
+				ret = 1;
+				goto out_shutdown;
+			}
 			msg_cinfo("Please note that forced reads most likely contain garbage.\n");
-			return read_flash_to_file(&flashes[0], filename);
+			ret = read_flash_to_file(&flashes[0], filename);
+			unmap_flash(&flashes[0]);
+			free(flashes[0].chip);
+			goto out_shutdown;
 		}
 		ret = 1;
 		goto out_shutdown;
@@ -805,6 +813,12 @@ int main(int argc, char *argv[])
 				goto out_shutdown;
 			}
 		}
+	}
+
+	/* Map the selected flash chip again. */
+	if (map_flash(fill_flash) != 0) {
+		ret = 1;
+		goto out_shutdown;
 	}
 
 	/* Always verify write operations unless -n is used. */
@@ -979,6 +993,8 @@ int main(int argc, char *argv[])
 	}
 
 	msg_ginfo("%s\n", ret ? "FAILED" : "SUCCESS");
+
+	unmap_flash(fill_flash);
 out_shutdown:
 	programmer_shutdown();  /* must be done after chip_restore() */
 #if USE_BIG_LOCK == 1
