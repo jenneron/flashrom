@@ -361,6 +361,8 @@ void list_programmers_linebreak(int startcol, int cols, int paren);
 int selfcheck(void);
 int read_buf_from_file(unsigned char *buf, unsigned long size, const char *filename);
 int write_buf_to_file(const unsigned char *buf, unsigned long size, const char *filename);
+int prepare_flash_access(struct flashctx *, bool read_it, bool write_it, bool erase_it, bool verify_it);
+void finalize_flash_access(struct flashctx *);
 
 /*
  *
