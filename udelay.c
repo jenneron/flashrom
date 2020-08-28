@@ -222,6 +222,19 @@ static void imprecise_delay(unsigned int usecs)
 	}
 }
 
+/* Not very precise sleep. */
+void internal_sleep(unsigned int usecs)
+{
+#if IS_WINDOWS
+	Sleep((usecs + 999) / 1000);
+#elif defined(__DJGPP__)
+	sleep(usecs / 1000000);
+	usleep(usecs % 1000000);
+#else
+	nanosleep(&(struct timespec){usecs / 1000000, (usecs * 1000) % 1000000000UL}, NULL);
+#endif
+}
+
 void internal_delay(unsigned int usecs)
 {
 	if (broken_timer) {

@@ -246,6 +246,7 @@ extern const struct board_info laptops_known[];
 void myusec_delay(unsigned int usecs);
 void myusec_calibrate_delay(void);
 void internal_delay(unsigned int usecs);
+void internal_sleep(unsigned int usecs);
 
 #if NEED_PCI == 1
 /* pcidev.c */
