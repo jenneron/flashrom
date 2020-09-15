@@ -3,7 +3,6 @@
  *
  * Copyright (C) 2000 Silicon Integrated System Corporation
  * Copyright (C) 2009,2010 Carl-Daniel Hailfinger
- * Copyright (C) 2011 Google Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,12 +27,6 @@
 #include "flash.h"
 #include "programmer.h"
 
-/* 100ms is currently the highest delay period for operations that are expected
- * to be called repeatedly (such as block erases). Delays beyond that are used
- * in rare circumstances, so a few extra milliseconds delay shouldn't have much
- * impact on overall runtime.
- */
-#define IMPRECISE_MIN_DELAY_THRESHOLD_US	(100 * 1000)
 static bool use_clock_gettime = false;
 
 #if HAVE_CLOCK_GETTIME == 1
@@ -82,8 +75,6 @@ static inline void clock_usec_delay(int usecs) {}
 static inline int clock_check_res(void) { return 0; }
 
 #endif /* HAVE_CLOCK_GETTIME == 1 */
-/* Are OS timers broken? */
-static int broken_timer = 0;
 
 /* loops per microsecond */
 static unsigned long micro = 1;
@@ -150,9 +141,6 @@ void myusec_calibrate_delay(void)
 	unsigned long count = 1000;
 	unsigned long timeusec, resolution;
 	int i, tries = 0;
-
-	if (!broken_timer)
-		return;
 
 	msg_pinfo("Calibrating delay loop... ");
 	resolution = measure_os_delay_resolution();
@@ -233,45 +221,6 @@ recalibrate:
 	msg_pinfo("OK.\n");
 }
 
-static void imprecise_delay(unsigned int usecs)
-{
-	int ret, done_waiting = 0;
-	unsigned long long nsecs;
-	struct timespec req = { 0, 0 };
-
-	/* flashrom delays work with a microsecond granularity. However
-	 * usleep has been obsoleted in POSIX.1-2001 and removed from
-	 * POSIX.1-2008 with the suggestion to use nanosleep(2) instead.
-	 */
-	nsecs = 1000ULL * usecs;
-	req.tv_sec = nsecs / 1000000000ULL;
-	req.tv_nsec = nsecs % 1000000000ULL;
-
-	while (!done_waiting) {
-		struct timespec rem;
-		ret = nanosleep(&req, &rem);
-		if (ret && (errno == EINTR)) {
-			req = rem;
-			continue;
-		}
-		done_waiting = 1;
-	}
-
-	/* If nanosleep reports problems with copying information from user
-	 * space we fall back to the "broken timer" code.
-	 */
-	if (ret && (errno == EFAULT)) {
-		broken_timer = 1;
-		/* Since we use delays quite early (i.e. during probing)
-		 * we can recalibrate our delay loop interjacently without
-		 * risking data integrity. This will only happen once.
-		 */
-		myusec_calibrate_delay();
-		/* Now, for the sake of it, delay. */
-		myusec_delay(usecs);
-	}
-}
-
 /* Not very precise sleep. */
 void internal_sleep(unsigned int usecs)
 {
@@ -285,18 +234,16 @@ void internal_sleep(unsigned int usecs)
 #endif
 }
 
+/* Precise delay. */
 void internal_delay(unsigned int usecs)
 {
-	if (broken_timer) {
-		/* Very long delays don't need much precision, so use nanosleep
-		 * instead of busy waiting to avoid excessive overhead.
-		 */
-		if (usecs > IMPRECISE_MIN_DELAY_THRESHOLD_US)
-			imprecise_delay(usecs);
-		else
-			myusec_delay(usecs);
+	/* If the delay is >1 s, use internal_sleep because timing does not need to be so precise. */
+	if (usecs > 1000000) {
+		internal_sleep(usecs);
+	} else if (use_clock_gettime) {
+		clock_usec_delay(usecs);
 	} else {
-		imprecise_delay(usecs);
+		myusec_delay(usecs);
 	}
 }
 
