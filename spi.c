@@ -158,6 +158,11 @@ int spi_chip_write_256(struct flashctx *flash, const uint8_t *buf, unsigned int 
 	return spi_master->write_256(flash, buf, start, len);
 }
 
+int spi_aai_write(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len)
+{
+	return flash->mst->spi.write_aai(flash, buf, start, len);
+}
+
 int register_spi_master(const struct spi_master *mst)
 {
 	struct registered_master rmst;

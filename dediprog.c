@@ -632,12 +632,10 @@ static int dediprog_spi_write_256(struct flashctx *flash, const uint8_t *buf, un
 	return dediprog_spi_write(flash, buf, start, len, WRITE_MODE_PAGE_PGM);
 }
 
-#if 0
 static int dediprog_spi_write_aai(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len)
 {
 	return dediprog_spi_write(flash, buf, start, len, WRITE_MODE_2B_AAI);
 }
-#endif
 
 static int dediprog_spi_send_command(const struct flashctx *flash,
 				     unsigned int writecnt,
@@ -961,24 +959,15 @@ static int parse_voltage(char *voltage)
 	return millivolt;
 }
 
-#if 0
-static const struct spi_master spi_master_dediprog = {
-	.max_data_read	= MAX_DATA_UNSPECIFIED,
-	.max_data_write	= MAX_DATA_UNSPECIFIED,
+static struct spi_master spi_master_dediprog = {
+	.features	= SPI_MASTER_NO_4BA_MODES,
+	.max_data_read	= 16, /* 18 seems to work fine as well, but 19 times out sometimes with FW 5.15. */
+	.max_data_write	= 16,
 	.command	= dediprog_spi_send_command,
 	.multicommand	= default_spi_send_multicommand,
 	.read		= dediprog_spi_read,
 	.write_256	= dediprog_spi_write_256,
 	.write_aai	= dediprog_spi_write_aai,
-};
-#endif
-static const struct spi_master spi_master_dediprog = {
-	.max_data_read	= MAX_DATA_UNSPECIFIED,
-	.max_data_write	= MAX_DATA_UNSPECIFIED,
-	.command	= dediprog_spi_send_command,
-	.multicommand	= default_spi_send_multicommand,
-	.read		= dediprog_spi_read,
-	.write_256	= dediprog_spi_write_256,
 };
 
 static int dediprog_shutdown(void *data)
