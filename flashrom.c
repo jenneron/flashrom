@@ -2342,6 +2342,9 @@ int prepare_flash_access(struct flashctx *const flash,
 		return 1;
 	}
 
+	if (map_flash(flash) != 0)
+		return 1;
+
 	/* Given the existence of read locks, we want to unlock for read,
 	   erase and write. */
 	if (flash->chip->unlock)
@@ -2635,6 +2638,8 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
 				emergency_help_message();
 		}
 	}
+
+	finalize_flash_access(flash);
 
 out:
 	if (descriptor)
