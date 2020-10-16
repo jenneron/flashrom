@@ -13,10 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-##
 
 ##
 ## Please keep this list sorted alphabetically by vendor/device name.
@@ -60,6 +56,12 @@ ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6011", MODE="664", GROUP="plugdev"
 # http://www.goepel.com/jtagboundary-scan/hardware/picotap.html
 ATTRS{idVendor}=="096c", ATTRS{idProduct}=="1449", MODE="664", GROUP="plugdev"
 
+# Google servo debug board
+# https://www.chromium.org/chromium-os/servo
+ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="5001", MODE="664", GROUP="plugdev"
+ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="5002", MODE="664", GROUP="plugdev"
+ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="5003", MODE="664", GROUP="plugdev"
+
 # Olimex ARM-USB-OCD
 # http://olimex.com/dev/arm-usb-ocd.html
 ATTRS{idVendor}=="15ba", ATTRS{idProduct}=="0003", MODE="664", GROUP="plugdev"
@@ -79,5 +81,12 @@ ATTRS{idVendor}=="15ba", ATTRS{idProduct}=="002a", MODE="664", GROUP="plugdev"
 # TIAO/DIYGADGET USB Multi-Protocol Adapter (TUMPA)
 # http://www.diygadget.com/tiao-usb-multi-protocol-adapter-jtag-spi-i2c-serial.html
 ATTRS{idVendor}=="0403", ATTRS{idProduct}=="8a98", MODE="664", GROUP="plugdev"
+
+# TIAO/DIYGADGET USB Multi-Protocol Adapter (TUMPA) Lite
+# http://www.tiaowiki.com/w/TIAO_USB_Multi_Protocol_Adapter_Lite_User's_Manual
+ATTRS{idVendor}=="0403", ATTRS{idProduct}=="8a99", MODE="664", GROUP="plugdev"
+
+# Winchiphead (WCH) CH341a based programmer
+ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE="664", GROUP="plugdev"
 
 LABEL="flashrom_rules_end"
