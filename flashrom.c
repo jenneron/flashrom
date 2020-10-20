@@ -2342,8 +2342,22 @@ int prepare_flash_access(struct flashctx *const flash,
 		return 1;
 	}
 
+	/*
+	 * FIXME(b/171093672): Failures to map_flash() on some DUT's due to unknown cause,
+	 * can be repro'ed with upstream on Volteer.
+	 *
+	 * map_flash() can fail on opaque spi drv such as linux_mtd and even ichspi.
+         * The issue is that 'internal' [alias 'host'] has the cb 'map_flash_region = physmap'
+         * hooked and this can fail on some board topologies. Checking the return value can
+         * cause board rw failures by bailing early. Avoid the early bail for now until a
+	 * full investigation can reveal the proper fix. This restores previous behaviour of
+	 * assuming a map went fine.
+	 */
+#if 0
 	if (map_flash(flash) != 0)
 		return 1;
+#endif
+	map_flash(flash);
 
 	/* Given the existence of read locks, we want to unlock for read,
 	   erase and write. */
