@@ -50,6 +50,11 @@ struct cros_ec_priv {
 	 * Allow block size to be overwritten in case the EC is incorrect.
 	 */
 	unsigned int erase_block_size;
+
+	/*
+	 * Allow max response size to be overwritten in case the EC is incorrect.
+	 */
+	unsigned int max_response_size;
 };
 
 extern struct cros_ec_priv *cros_ec_priv;
