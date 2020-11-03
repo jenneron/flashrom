@@ -70,6 +70,22 @@ static int sb600_spi_send_command(const struct flashctx *flash, unsigned int wri
 static int spi100_spi_send_command(const struct flashctx *flash, unsigned int writecnt, unsigned int readcnt,
 				  const unsigned char *writearr, unsigned char *readarr);
 
+int hacked_read_memmapped(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len)
+{
+	/**
+	 * FIXME(b/157511574):
+	 *
+	 * If spi drv like sb600spi.c are to layer violate with .read callback set
+	 * to the internal function `read_memmapped()` that dispatches mmap_reads
+	 * then we must hack to avoid incuring calls to read_from_flash() without a
+	 * pre- map_flash() that would result in an invalid mmap().
+	 */
+	map_flash(flash);
+	int ret = read_memmapped(flash, buf, start, len);
+	finalize_flash_access(flash);
+	return ret;
+}
+
 static struct spi_master spi_master_sb600 = {
 	.max_data_read = FIFO_SIZE_OLD,
 	.max_data_write = FIFO_SIZE_OLD - 3,
@@ -84,7 +100,7 @@ static struct spi_master spi_master_yangtze = {
 	.max_data_write = FIFO_SIZE_YANGTZE - 3,
 	.command = spi100_spi_send_command,
 	.multicommand = default_spi_send_multicommand,
-	.read = default_spi_read,
+	.read = hacked_read_memmapped,
 	.write_256 = default_spi_write_256,
 };
 
