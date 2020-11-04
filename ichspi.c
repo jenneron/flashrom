@@ -1259,7 +1259,7 @@ static int check_fd_permissions(OPCODE *opcode, int type, uint32_t addr, int cou
 		break;
 	}
 
-	if (i == num_fd_regions) {
+	if ((i == num_fd_regions) && !opcode) { // FIXME(b/171892105).
 		msg_pspew("%s: Address not covered by any descriptor 0x%06x\n",
 			  __func__, addr);
 		ret = SPI_ACCESS_DENIED;
