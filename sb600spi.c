@@ -79,11 +79,15 @@ int hacked_read_memmapped(struct flashctx *flash, uint8_t *buf, unsigned int sta
 	 * to the internal function `read_memmapped()` that dispatches mmap_reads
 	 * then we must hack to avoid incuring calls to read_from_flash() without a
 	 * pre- map_flash() that would result in an invalid mmap().
+	 *
+	 * Addendum: read_memmapped() also relies on a valid par_master being
+	 * registered. With the switch to flash->mst, this is never satisfied, so
+	 * bypass it entirely and use mmio_readn() directly.
 	 */
 	map_flash(flash);
-	int ret = read_memmapped(flash, buf, start, len);
+	mmio_readn((void *)(flash->virtual_memory + start), buf, len);
 	finalize_flash_access(flash);
-	return ret;
+	return 0;
 }
 
 static struct spi_master spi_master_sb600 = {
