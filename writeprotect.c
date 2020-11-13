@@ -875,7 +875,7 @@ static uint8_t w25q_read_status_register_2(const struct flashctx *flash)
 }
 
 /* FIXME: Move to spi25.c if it's a JEDEC standard opcode */
-uint8_t mx25l_read_config_register(const struct flashctx *flash)
+static uint8_t mx25l_read_config_register(const struct flashctx *flash)
 {
 	static const unsigned char cmd[JEDEC_RDSR_OUTSIZE] = { 0x15 };
 	unsigned char readarr[2];	/* leave room for dummy byte */

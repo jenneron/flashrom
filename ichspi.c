@@ -1389,7 +1389,7 @@ static void ich_hwseq_set_addr(uint32_t addr)
 	REGWRITE32(ICH9_REG_FADDR, (addr & hwseq_data.addr_mask) | addr_old);
 }
 
-int ich_hwseq_check_access(const struct flashctx *flash, unsigned int start,
+static int ich_hwseq_check_access(const struct flashctx *flash, unsigned int start,
 			      unsigned int len, int read)
 {
 	return check_fd_permissions(NULL, read ? SPI_OPCODE_TYPE_READ_NO_ADDRESS: SPI_OPCODE_TYPE_WRITE_NO_ADDRESS, start, len);
@@ -1515,7 +1515,7 @@ static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_g
 	return 1;
 }
 
-uint8_t ich_hwseq_read_status(const struct flashctx *flash)
+static uint8_t ich_hwseq_read_status(const struct flashctx *flash)
 {
 	uint32_t hsfc;
 	uint32_t timeout = 5000 * 1000;
@@ -1546,7 +1546,7 @@ uint8_t ich_hwseq_read_status(const struct flashctx *flash)
 	return buf;
 }
 
-int ich_hwseq_write_status(const struct flashctx *flash, int status)
+static int ich_hwseq_write_status(const struct flashctx *flash, int status)
 {
 	uint32_t hsfc;
 	uint32_t timeout = 5000 * 1000;

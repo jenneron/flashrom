@@ -83,7 +83,7 @@ int probe_m29f400bt(struct flashctx *flash)
 	return 0;
 }
 
-int erase_m29f400bt(struct flashctx *flash)
+static int erase_m29f400bt(struct flashctx *flash)
 {
 	chipaddr bios = flash->virtual_memory;
 
