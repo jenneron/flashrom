@@ -56,15 +56,6 @@ static enum amd_chipset amd_gen = CHIPSET_AMD_UNKNOWN;
 #define FIFO_SIZE_OLD		8
 #define FIFO_SIZE_YANGTZE	71
 
-#define PM_INDEX		0xCD6
-#define PM_DATA			0xCD7
-#define ISA_CONTROL		0x04
-#define MMIO_EN			0x02
-#define ACPI_MMIO_BASE		0xFED80000
-#define MISC_BASE		0xE00
-#define STRAP_STATUS		0x80
-#define EC_ENABLE_STRAP		0x04
-
 int hacked_read_memmapped(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len)
 {
 	/**
@@ -83,12 +74,6 @@ int hacked_read_memmapped(struct flashctx *flash, uint8_t *buf, unsigned int sta
 	mmio_readn((void *)(flash->virtual_memory + start), buf, len);
 	finalize_flash_access(flash);
 	return 0;
-}
-
-static uint8_t pm_ioread (uint8_t addr)
-{
-	OUTB(addr, PM_INDEX);
-	return INB(PM_DATA);
 }
 
 static int find_smbus_dev_rev(uint16_t vendor, uint16_t device)
@@ -560,25 +545,6 @@ static int handle_imc(struct pci_dev *dev)
 	if ((reg & (1 << 7)) == 0) {
 		msg_pdbg("IMC is not active.\n");
 		return 0;
-	}
-
-	/* On Yangtze and newer chips, check the EcEnableStrap bit */
-	if ((amd_gen >= CHIPSET_YANGTZE) && (pm_ioread(ISA_CONTROL) & MMIO_EN )) {
-		uint8_t *AcpiMMIO = rphysmap("AMD ACPI registers", ACPI_MMIO_BASE & 0xfffff000, 0x1000);
-		if (AcpiMMIO != ERROR_PTR) {
-			AcpiMMIO += MISC_BASE + STRAP_STATUS;
-			uint32_t straps = mmio_readl(AcpiMMIO);
-			if ((straps & EC_ENABLE_STRAP) == 0){
-				msg_pinfo("IMC is not active.\n");
-				return 0;
-			} else {
-				msg_pinfo("IMC IS active! Straps: %08x (%p)\n", straps, (void *)AcpiMMIO);
-				msg_pinfo("StrapOverride: %08x\n", mmio_readl(AcpiMMIO + 4));
-			}
-
-		} else {
-			msg_pinfo("Error reading AMD ACPI registers.\n");
-		}
 	}
 
 	if (!amd_imc_force)
