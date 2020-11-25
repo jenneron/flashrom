@@ -54,4 +54,4 @@ struct modifier_bits {
 	int tb;		/* value of top/bottom select bit */
 };
 
-#endif				/* !__WRITEPROTECT_H__ */
+#endif /* !__WRITEPROTECT_H__ */
