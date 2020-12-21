@@ -855,6 +855,11 @@ static uint8_t w25q_read_status_register_2(const struct flashctx *flash)
 	unsigned char readarr[2];
 	int ret;
 
+	if (flash->chip->read_status) {
+		msg_cdbg("RDSR2 failed! cmd=0x35 unimpl for opaque chips\n");
+		return 0;
+	}
+
 	/* Read Status Register */
 	ret = spi_send_command(flash, sizeof(cmd), sizeof(readarr), cmd, readarr);
 	if (ret) {
@@ -875,6 +880,11 @@ uint8_t mx25l_read_config_register(const struct flashctx *flash)
 	static const unsigned char cmd[JEDEC_RDSR_OUTSIZE] = { 0x15 };
 	unsigned char readarr[2];	/* leave room for dummy byte */
 	int ret;
+
+	if (flash->chip->read_status) {
+		msg_cdbg("RDCR failed! cmd=0x15 unimpl for opaque chips\n");
+		return 0;
+	}
 
 	ret = spi_send_command(flash, sizeof(cmd), sizeof(readarr), cmd, readarr);
 	if (ret) {
