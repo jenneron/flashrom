@@ -2321,8 +2321,7 @@ static int generic_range_to_status(const struct flashctx *flash,
 
 			if (wp->set_modifier_bits) {
 				if (wp->set_modifier_bits(flash, &r->m) < 0) {
-					msg_cerr("error setting modifier "
-						"bits for range.\n");
+					msg_cerr("error setting modifier bits for range.\n");
 					return -1;
 				}
 			}
