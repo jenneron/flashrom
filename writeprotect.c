@@ -832,6 +832,145 @@ static struct wp_range_descriptor a25l040_ranges[] = {
 	{ .m = { .sec = X, .tb = X }, 0x7, {0x00000, 512 * 1024} },
 };
 
+struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
+	// FIXME: The .wp field should be deleted from from struct flashchip
+	// completly, but linux_mtd and cros_ec still assign their own values
+	// to it. When they are cleaned up we can delete this.
+	if(chip->wp) return chip->wp;
+
+	switch (chip->manufacture_id) {
+	case WINBOND_NEX_ID:
+		switch(chip->model_id) {
+		case WINBOND_NEX_W25X10:
+		case WINBOND_NEX_W25X20:
+		case WINBOND_NEX_W25X40:
+		case WINBOND_NEX_W25X80:
+		case WINBOND_NEX_W25Q128_V_M:
+			return &wp_w25;
+		case WINBOND_NEX_W25Q80_V:
+		case WINBOND_NEX_W25Q16_V:
+		case WINBOND_NEX_W25Q32_V:
+		case WINBOND_NEX_W25Q32_W:
+		case WINBOND_NEX_W25Q32JW:
+		case WINBOND_NEX_W25Q64_V:
+                case WINBOND_NEX_W25Q64_W:
+		// W25Q64JW does not have a range table entry, but the flashchip
+		// set .wp to wp_25q, so keep it here until the issue is resolved
+		case WINBOND_NEX_W25Q64JW:
+		case WINBOND_NEX_W25Q128_DTR:
+		case WINBOND_NEX_W25Q128_V:
+		case WINBOND_NEX_W25Q128_W:
+			return &wp_w25q;
+		case WINBOND_NEX_W25Q256_V:
+		case WINBOND_NEX_W25Q256JV_M:
+			return &wp_w25q_large;
+		}
+		break;
+	case EON_ID_NOPREFIX:
+		switch (chip->model_id) {
+		case EON_EN25F40:
+		case EON_EN25Q40:
+		case EON_EN25Q80:
+		case EON_EN25Q32:
+		case EON_EN25Q64:
+		case EON_EN25Q128:
+		case EON_EN25QH128:
+		case EON_EN25S64:
+			return &wp_w25;
+		}
+		break;
+	case MACRONIX_ID:
+		switch (chip->model_id) {
+		case MACRONIX_MX25L1005:
+		case MACRONIX_MX25L2005:
+		case MACRONIX_MX25L4005:
+		case MACRONIX_MX25L8005:
+		case MACRONIX_MX25L1605:
+		case MACRONIX_MX25L3205:
+		case MACRONIX_MX25U3235E:
+		case MACRONIX_MX25U6435E:
+			return &wp_w25;
+		case MACRONIX_MX25U12835E:
+			return &wp_w25q_large;
+		case MACRONIX_MX25L6405:
+		case MACRONIX_MX25L6495F:
+		case MACRONIX_MX25L25635F:
+			return &wp_generic;
+		}
+		break;
+	case ST_ID:
+		switch(chip->model_id) {
+		case ST_N25Q064__1E:
+		case ST_N25Q064__3E:
+			return &wp_w25;
+		}
+		break;
+	case GIGADEVICE_ID:
+		switch(chip->model_id) {
+		case GIGADEVICE_GD25LQ32:
+		// GD25Q40 does not have a .wp field in flashchips.c, but
+		// it is in the w25 range table function, so note it here
+		// until the issue is resolved:
+		// case GIGADEVICE_GD25Q40:
+		case GIGADEVICE_GD25Q64:
+		case GIGADEVICE_GD25LQ64:
+		// Ranges for GD25Q128 are defined in both the generic and
+		// w25 range table functions. The .wp field in the flashchip
+		// pointed to wp_w25, so use that here as well.
+		case GIGADEVICE_GD25Q128:
+			return &wp_w25;
+		case GIGADEVICE_GD25Q256D:
+			return &wp_w25q_large;
+		// Ranges for GD25Q128CD are defined in both the generic and
+		// w25 range table functions. The .wp field in the flashchip
+		// pointed to wp_generic, so use that here as well.
+		case GIGADEVICE_GD25LQ128CD:
+		case GIGADEVICE_GD25Q32:
+			return &wp_generic;
+		}
+		break;
+	case AMIC_ID_NOPREFIX:
+		switch(chip->model_id) {
+		case AMIC_A25L040:
+			return &wp_w25;
+		}
+		break;
+	case ATMEL_ID:
+		switch(chip->model_id) {
+		case ATMEL_AT25SF128A:
+		case ATMEL_AT25SL128A:
+			return &wp_w25q;
+		}
+		break;
+	case PROGMANUF_ID:
+		switch(chip->model_id) {
+		case PROGDEV_ID:
+			return &wp_w25;
+		}
+		break;
+	case SPANSION_ID:
+		switch (chip->model_id) {
+		case SPANSION_S25FS128S_L:
+		case SPANSION_S25FS128S_S:
+		case SPANSION_S25FL256S_UL:
+		case SPANSION_S25FL256S_US:
+		// SPANSION_S25FL128S_UL does not have a range table entry,
+		// but its flashchip set .wp to wp_generic, so keep it here
+		// until the issue resolved
+		case SPANSION_S25FL128S_UL:
+		// SPANSION_S25FL128S_US does not have a range table entry,
+		// but its flashchip set .wp to wp_generic, so keep it here
+		// until the issue resolved
+		case SPANSION_S25FL128S_US:
+			return &wp_generic;
+		}
+		break;
+	}
+
+
+	return NULL;
+}
+
 static uint8_t do_read_status(const struct flashctx *flash)
 {
 	if (flash->chip->read_status)

@@ -18,6 +18,8 @@
 #ifndef __WRITEPROTECT_H__
 #define __WRITEPROTECT_H__ 1
 
+#include "flash.h"
+
 enum wp_mode {
 	WP_MODE_UNKNOWN = -1,
 	WP_MODE_HARDWARE,	/* hardware WP pin determines status */
@@ -43,6 +45,7 @@ extern struct wp wp_w25q_large; /* large winbond chips (>= 32MB) */
 extern struct wp wp_generic;
 extern struct wp wp_wpce775x;
 
+struct wp *get_wp_for_flashchip(const struct flashchip *chip);
 enum wp_mode get_wp_mode(const char *mode_str);
 
 /*
