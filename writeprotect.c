@@ -914,16 +914,10 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 		// case GIGADEVICE_GD25Q40:
 		case GIGADEVICE_GD25Q64:
 		case GIGADEVICE_GD25LQ64:
-		// Ranges for GD25Q128 are defined in both the generic and
-		// w25 range table functions. The .wp field in the flashchip
-		// pointed to wp_w25, so use that here as well.
 		case GIGADEVICE_GD25Q128:
 			return &wp_w25;
 		case GIGADEVICE_GD25Q256D:
 			return &wp_w25q_large;
-		// Ranges for GD25Q128CD are defined in both the generic and
-		// w25 range table functions. The .wp field in the flashchip
-		// pointed to wp_generic, so use that here as well.
 		case GIGADEVICE_GD25LQ128CD:
 		case GIGADEVICE_GD25Q32:
 			return &wp_generic;
@@ -1236,7 +1230,6 @@ static int w25_range_table(const struct flashctx *flash,
 			*num_entries = ARRAY_SIZE(gd25q64_ranges);
 			break;
 		case GIGADEVICE_GD25Q128:
-		case GIGADEVICE_GD25LQ128CD:
 			if (w25q_read_status_register_2(flash) & (1 << 6)) {
 				/* CMP == 1 */
 				*descrs = w25rq128_cmp1_ranges;
@@ -2297,7 +2290,6 @@ static int generic_range_table(const struct flashctx *flash,
 	case GIGADEVICE_ID:
 		switch(flash->chip->model_id) {
 
-		case GIGADEVICE_GD25LQ32:
 		case GIGADEVICE_GD25Q32: {
 			uint8_t sr1 = w25q_read_status_register_2(flash);
 			*wp = &gd25q32_wp;
@@ -2312,7 +2304,6 @@ static int generic_range_table(const struct flashctx *flash,
 
 			break;
 		}
-		case GIGADEVICE_GD25Q128:
 		case GIGADEVICE_GD25LQ128CD: {
 			uint8_t sr1 = w25q_read_status_register_2(flash);
 			*wp = &gd25q128_wp;
