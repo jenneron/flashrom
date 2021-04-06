@@ -1693,7 +1693,7 @@ static int w25_disable_writeprotect(const struct flashctx *flash)
 	return ret;
 }
 
-static int w25_list_ranges(const struct flashctx *flash)
+static int list_ranges(const struct flashctx *flash)
 {
 	struct wp_range_descriptor *descrs;
 	int i, num_entries;
@@ -1944,7 +1944,7 @@ static int w25q_enable_writeprotect(const struct flashctx *flash,
 
 /* W25P, W25X, and many flash chips from various vendors */
 struct wp wp_w25 = {
-	.list_ranges	= w25_list_ranges,
+	.list_ranges	= list_ranges,
 	.set_range	= w25_set_range,
 	.enable		= w25_enable_writeprotect,
 	.disable	= w25_disable_writeprotect,
@@ -1954,7 +1954,7 @@ struct wp wp_w25 = {
 
 /* W25Q series has features such as a second status register and SFDP */
 struct wp wp_w25q = {
-	.list_ranges	= w25_list_ranges,
+	.list_ranges	= list_ranges,
 	.set_range	= w25_set_range,
 	.enable		= w25q_enable_writeprotect,
 	/*
@@ -1968,7 +1968,7 @@ struct wp wp_w25q = {
 
 /* W25Q large series has 4 block-protect bits */
 struct wp wp_w25q_large = {
-	.list_ranges	= w25_list_ranges,
+	.list_ranges	= list_ranges,
 	.set_range	= w25q_large_set_range,
 	.enable		= w25q_enable_writeprotect,
 	/*
@@ -2589,23 +2589,6 @@ static int generic_disable_writeprotect(const struct flashctx *flash)
 	return ret;
 }
 
-static int generic_list_ranges(const struct flashctx *flash)
-{
-	struct wp_range_descriptor *r;
-	int i, num_entries;
-
-	if (range_table(flash, &r, &num_entries))
-		return -1;
-
-	for (i = 0; i < num_entries; i++) {
-		msg_cinfo("start: 0x%06x, length: 0x%06x\n",
-		          r->range.start, r->range.len);
-		r++;
-	}
-
-	return 0;
-}
-
 static int wp_context_status(const struct flashctx *flash)
 {
 	uint8_t sr1;
@@ -2640,7 +2623,7 @@ static int wp_context_status(const struct flashctx *flash)
 }
 
 struct wp wp_generic = {
-	.list_ranges	= generic_list_ranges,
+	.list_ranges	= list_ranges,
 	.set_range	= generic_set_range,
 	.enable		= generic_enable_writeprotect,
 	.disable	= generic_disable_writeprotect,
