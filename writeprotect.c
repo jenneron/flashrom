@@ -996,6 +996,10 @@ static uint8_t mx25l_read_config_register(const struct flashctx *flash)
 	return readarr[0];
 }
 
+static int generic_range_table(const struct flashctx *flash,
+                           struct wp_range_descriptor **descrs,
+                           int *num_entries);
+
 /* Given a flash chip, this function returns its range table. */
 static int w25_range_table(const struct flashctx *flash,
                            struct wp_range_descriptor **descrs,
@@ -1008,75 +1012,7 @@ static int w25_range_table(const struct flashctx *flash,
 
 	switch (flash->chip->manufacture_id) {
 	case WINBOND_NEX_ID:
-		switch(flash->chip->model_id) {
-		case WINBOND_NEX_W25X10:
-			*descrs = w25x10_ranges;
-			*num_entries = ARRAY_SIZE(w25x10_ranges);
-			break;
-		case WINBOND_NEX_W25X20:
-			*descrs = w25x20_ranges;
-			*num_entries = ARRAY_SIZE(w25x20_ranges);
-			break;
-		case WINBOND_NEX_W25X40:
-			*descrs = w25x40_ranges;
-			*num_entries = ARRAY_SIZE(w25x40_ranges);
-			break;
-		case WINBOND_NEX_W25X80:
-			*descrs = w25x80_ranges;
-			*num_entries = ARRAY_SIZE(w25x80_ranges);
-			break;
-		case WINBOND_NEX_W25Q80_V:
-			*descrs = w25q80_ranges;
-			*num_entries = ARRAY_SIZE(w25q80_ranges);
-			break;
-		case WINBOND_NEX_W25Q16_V:
-			*descrs = w25q16_ranges;
-			*num_entries = ARRAY_SIZE(w25q16_ranges);
-			break;
-		case WINBOND_NEX_W25Q32_V:
-		case WINBOND_NEX_W25Q32_W:
-		case WINBOND_NEX_W25Q32JW:
-			*descrs = w25q32_ranges;
-			*num_entries = ARRAY_SIZE(w25q32_ranges);
-			break;
-		case WINBOND_NEX_W25Q64_V:
-                case WINBOND_NEX_W25Q64_W:
-			*descrs = w25q64_ranges;
-			*num_entries = ARRAY_SIZE(w25q64_ranges);
-			break;
-		case WINBOND_NEX_W25Q128_DTR:
-		case WINBOND_NEX_W25Q128_V_M:
-		case WINBOND_NEX_W25Q128_V:
-		case WINBOND_NEX_W25Q128_W:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = w25rq128_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
-			} else {
-				/* CMP == 0 */
-				*descrs = w25rq128_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
-			}
-			break;
-		case WINBOND_NEX_W25Q256_V:
-		case WINBOND_NEX_W25Q256JV_M:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = w25rq256_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(w25rq256_cmp1_ranges);
-			} else {
-				/* CMP == 0 */
-				*descrs = w25rq256_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(w25rq256_cmp0_ranges);
-			}
-			break;
-		default:
-			msg_cerr("%s() %d: WINBOND flash chip mismatch (0x%04x)"
-			         ", aborting\n", __func__, __LINE__,
-			         flash->chip->model_id);
-			return -1;
-		}
-		break;
+		return generic_range_table(flash, descrs, num_entries);
 	case EON_ID_NOPREFIX:
 		switch (flash->chip->model_id) {
 		case EON_EN25F40:
@@ -2310,6 +2246,77 @@ static int generic_range_table(const struct flashctx *flash,
 	*num_entries = 0;
 
 	switch (flash->chip->manufacture_id) {
+	case WINBOND_NEX_ID:
+		switch(flash->chip->model_id) {
+		case WINBOND_NEX_W25X10:
+			*descrs = w25x10_ranges;
+			*num_entries = ARRAY_SIZE(w25x10_ranges);
+			break;
+		case WINBOND_NEX_W25X20:
+			*descrs = w25x20_ranges;
+			*num_entries = ARRAY_SIZE(w25x20_ranges);
+			break;
+		case WINBOND_NEX_W25X40:
+			*descrs = w25x40_ranges;
+			*num_entries = ARRAY_SIZE(w25x40_ranges);
+			break;
+		case WINBOND_NEX_W25X80:
+			*descrs = w25x80_ranges;
+			*num_entries = ARRAY_SIZE(w25x80_ranges);
+			break;
+		case WINBOND_NEX_W25Q80_V:
+			*descrs = w25q80_ranges;
+			*num_entries = ARRAY_SIZE(w25q80_ranges);
+			break;
+		case WINBOND_NEX_W25Q16_V:
+			*descrs = w25q16_ranges;
+			*num_entries = ARRAY_SIZE(w25q16_ranges);
+			break;
+		case WINBOND_NEX_W25Q32_V:
+		case WINBOND_NEX_W25Q32_W:
+		case WINBOND_NEX_W25Q32JW:
+			*descrs = w25q32_ranges;
+			*num_entries = ARRAY_SIZE(w25q32_ranges);
+			break;
+		case WINBOND_NEX_W25Q64_V:
+                case WINBOND_NEX_W25Q64_W:
+			*descrs = w25q64_ranges;
+			*num_entries = ARRAY_SIZE(w25q64_ranges);
+			break;
+		case WINBOND_NEX_W25Q128_DTR:
+		case WINBOND_NEX_W25Q128_V_M:
+		case WINBOND_NEX_W25Q128_V:
+		case WINBOND_NEX_W25Q128_W:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq128_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq128_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
+			}
+			break;
+		case WINBOND_NEX_W25Q256_V:
+		case WINBOND_NEX_W25Q256JV_M:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq256_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq256_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq256_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq256_cmp0_ranges);
+			}
+			break;
+		default:
+			msg_cerr("%s() %d: WINBOND flash chip mismatch (0x%04x)"
+			         ", aborting\n", __func__, __LINE__,
+			         flash->chip->model_id);
+			return -1;
+		}
+		break;
+
 	case GIGADEVICE_ID:
 		switch(flash->chip->model_id) {
 
