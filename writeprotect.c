@@ -1013,50 +1013,8 @@ static int w25_range_table(const struct flashctx *flash,
 	case EON_ID_NOPREFIX:
 	case MACRONIX_ID:
 	case ST_ID:
-		return generic_range_table(flash, descrs, num_entries);
 	case GIGADEVICE_ID:
-		switch(flash->chip->model_id) {
-		case GIGADEVICE_GD25LQ32:
-			*descrs = w25q32_ranges;
-			*num_entries = ARRAY_SIZE(w25q32_ranges);
-			break;
-		case GIGADEVICE_GD25Q40:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = gd25q40_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(gd25q40_cmp1_ranges);
-			} else {
-				*descrs = gd25q40_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(gd25q40_cmp0_ranges);
-			}
-			break;
-		case GIGADEVICE_GD25Q64:
-		case GIGADEVICE_GD25LQ64:
-			*descrs = gd25q64_ranges;
-			*num_entries = ARRAY_SIZE(gd25q64_ranges);
-			break;
-		case GIGADEVICE_GD25Q128:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = w25rq128_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
-			} else {
-				/* CMP == 0 */
-				*descrs = w25rq128_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
-			}
-			break;
-		case GIGADEVICE_GD25Q256D:
-			*descrs = w25rq256_cmp0_ranges;
-			*num_entries = ARRAY_SIZE(w25rq256_cmp0_ranges);
-			break;
-		default:
-			msg_cerr("%s() %d: GigaDevice flash chip mismatch"
-				 " (0x%04x), aborting\n", __func__, __LINE__,
-				 flash->chip->model_id);
-			return -1;
-		}
-		break;
+		return generic_range_table(flash, descrs, num_entries);
 	case AMIC_ID_NOPREFIX:
 		switch(flash->chip->model_id) {
 		case AMIC_A25L040:
@@ -2281,6 +2239,40 @@ static int generic_range_table(const struct flashctx *flash,
 
 			break;
 		}
+		case GIGADEVICE_GD25LQ32:
+			*descrs = w25q32_ranges;
+			*num_entries = ARRAY_SIZE(w25q32_ranges);
+			break;
+		case GIGADEVICE_GD25Q40:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = gd25q40_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(gd25q40_cmp1_ranges);
+			} else {
+				*descrs = gd25q40_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(gd25q40_cmp0_ranges);
+			}
+			break;
+		case GIGADEVICE_GD25Q64:
+		case GIGADEVICE_GD25LQ64:
+			*descrs = gd25q64_ranges;
+			*num_entries = ARRAY_SIZE(gd25q64_ranges);
+			break;
+		case GIGADEVICE_GD25Q128:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq128_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq128_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
+			}
+			break;
+		case GIGADEVICE_GD25Q256D:
+			*descrs = w25rq256_cmp0_ranges;
+			*num_entries = ARRAY_SIZE(w25rq256_cmp0_ranges);
+			break;
 		default:
 			msg_cerr("%s() %d: GigaDevice flash chip mismatch"
 				 " (0x%04x), aborting\n", __func__, __LINE__,
