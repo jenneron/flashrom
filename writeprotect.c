@@ -72,8 +72,7 @@ struct wp_range_descriptor {
 };
 
 struct wp_context {
-	struct status_register_layout sr1;	/* status register 1 */
-	struct wp_range_descriptor *descrs;
+	struct status_register_layout sr1;      /* status register 1 */
 };
 
 struct w25q_status {
@@ -2126,7 +2125,6 @@ static struct wp_range_descriptor mx25l6406e_ranges[] = {
 
 static struct wp_context mx25l6406e_wp = {
 	.sr1 = { .bp0_pos = 2, .bp_bits = 4, .srp_pos = 7 },
-	.descrs = &mx25l6406e_ranges[0],
 };
 
 static struct wp_range_descriptor mx25l6495f_tb0_ranges[] = {
@@ -2263,12 +2261,56 @@ static struct wp_context s25fl256s_wp = {
 	.sr1 = { .bp0_pos = 2, .bp_bits = 3, .srp_pos = 7 },
 };
 
+static int get_wp_context(
+	const struct flashctx *flash, struct wp_context **wp)
+{
+	switch (flash->chip->manufacture_id) {
+	case GIGADEVICE_ID:
+		switch(flash->chip->model_id) {
+
+		case GIGADEVICE_GD25Q32:
+			*wp = &gd25q32_wp;
+			return 0;
+		case GIGADEVICE_GD25LQ128CD:
+			*wp = &gd25q128_wp;
+			return 0;
+		}
+		break;
+	case MACRONIX_ID:
+		switch (flash->chip->model_id) {
+		case MACRONIX_MX25L6405:
+			*wp = &mx25l6406e_wp;
+			return 0;
+		case MACRONIX_MX25L6495F:
+			*wp = &mx25l6495f_wp;
+			return 0;
+		case MACRONIX_MX25L25635F:
+			*wp = &mx25l25635f_wp;
+			return 0;
+		}
+		break;
+	case SPANSION_ID:
+		switch (flash->chip->model_id) {
+		case SPANSION_S25FS128S_L:
+		case SPANSION_S25FS128S_S:
+			*wp = &s25fs128s_wp;
+			return 0;
+		case SPANSION_S25FL256S_UL:
+		case SPANSION_S25FL256S_US:
+			*wp = &s25fl256s_wp;
+			return 0;
+		}
+		break;
+	}
+
+	return 1;
+}
+
 /* Given a flash chip, this function returns its writeprotect info. */
 static int generic_range_table(const struct flashctx *flash,
-                           struct wp_context **wp,
+                           struct wp_range_descriptor **descrs,
                            int *num_entries)
 {
-	*wp = NULL;
 	*num_entries = 0;
 
 	switch (flash->chip->manufacture_id) {
@@ -2277,13 +2319,12 @@ static int generic_range_table(const struct flashctx *flash,
 
 		case GIGADEVICE_GD25Q32: {
 			uint8_t sr1 = w25q_read_status_register_2(flash);
-			*wp = &gd25q32_wp;
 
 			if (!(sr1 & (1 << 6))) {	/* CMP == 0 */
-				(*wp)->descrs = &gd25q32_cmp0_ranges[0];
+				*descrs = &gd25q32_cmp0_ranges[0];
 				*num_entries = ARRAY_SIZE(gd25q32_cmp0_ranges);
 			} else {			/* CMP == 1 */
-				(*wp)->descrs = &gd25q32_cmp1_ranges[0];
+				*descrs = &gd25q32_cmp1_ranges[0];
 				*num_entries = ARRAY_SIZE(gd25q32_cmp1_ranges);
 			}
 
@@ -2291,13 +2332,12 @@ static int generic_range_table(const struct flashctx *flash,
 		}
 		case GIGADEVICE_GD25LQ128CD: {
 			uint8_t sr1 = w25q_read_status_register_2(flash);
-			*wp = &gd25q128_wp;
 
 			if (!(sr1 & (1 << 6))) {	/* CMP == 0 */
-				(*wp)->descrs = &gd25q128_cmp0_ranges[0];
+				*descrs = &gd25q128_cmp0_ranges[0];
 				*num_entries = ARRAY_SIZE(gd25q128_cmp0_ranges);
 			} else {			/* CMP == 1 */
-				(*wp)->descrs = &gd25q128_cmp1_ranges[0];
+				*descrs = &gd25q128_cmp1_ranges[0];
 				*num_entries = ARRAY_SIZE(gd25q128_cmp1_ranges);
 			}
 
@@ -2315,18 +2355,17 @@ static int generic_range_table(const struct flashctx *flash,
 		case MACRONIX_MX25L6405:
 			/* FIXME: MX25L64* chips have mixed capabilities and
 			   share IDs */
-			*wp = &mx25l6406e_wp;
+			*descrs = &mx25l6406e_ranges[0];
 			*num_entries = ARRAY_SIZE(mx25l6406e_ranges);
 			break;
 		case MACRONIX_MX25L6495F: {
 			uint8_t cr = mx25l_read_config_register(flash);
 
-			*wp = &mx25l6495f_wp;
 			if (!(cr & (1 << 3))) {	/* T/B == 0 */
-				(*wp)->descrs = &mx25l6495f_tb0_ranges[0];
+				*descrs = &mx25l6495f_tb0_ranges[0];
 				*num_entries = ARRAY_SIZE(mx25l6495f_tb0_ranges);
 			} else {		/* T/B == 1 */
-				(*wp)->descrs = &mx25l6495f_tb1_ranges[0];
+				*descrs = &mx25l6495f_tb1_ranges[0];
 				*num_entries = ARRAY_SIZE(mx25l6495f_tb1_ranges);
 			}
 			break;
@@ -2334,12 +2373,11 @@ static int generic_range_table(const struct flashctx *flash,
 		case MACRONIX_MX25L25635F: {
 			uint8_t cr = mx25l_read_config_register(flash);
 
-			*wp = &mx25l25635f_wp;
 			if (!(cr & (1 << 3))) {	/* T/B == 0 */
-				(*wp)->descrs = &mx25l25635f_tb0_ranges[0];
+				*descrs = &mx25l25635f_tb0_ranges[0];
 				*num_entries = ARRAY_SIZE(mx25l25635f_tb0_ranges);
 			} else {		/* T/B == 1 */
-				(*wp)->descrs = &mx25l25635f_tb1_ranges[0];
+				*descrs = &mx25l25635f_tb1_ranges[0];
 				*num_entries = ARRAY_SIZE(mx25l25635f_tb1_ranges);
 			}
 			break;
@@ -2355,15 +2393,13 @@ static int generic_range_table(const struct flashctx *flash,
 		switch (flash->chip->model_id) {
 		case SPANSION_S25FS128S_L:
 		case SPANSION_S25FS128S_S: {
-			*wp = &s25fs128s_wp;
-			(*wp)->descrs = s25fs128s_ranges;
+			*descrs = s25fs128s_ranges;
 			*num_entries = ARRAY_SIZE(s25fs128s_ranges);
 			break;
 		}
 		case SPANSION_S25FL256S_UL:
 		case SPANSION_S25FL256S_US: {
-			*wp = &s25fl256s_wp;
-			(*wp)->descrs = s25fl256s_ranges;
+			*descrs = s25fl256s_ranges;
 			*num_entries = ARRAY_SIZE(s25fl256s_ranges);
 			break;
 		}
@@ -2420,12 +2456,15 @@ static int generic_range_to_status(const struct flashctx *flash,
 	int i, range_found = 0, num_entries;
 	uint8_t bp_mask;
 
-	if (generic_range_table(flash, &wp, &num_entries))
+	if (get_wp_context(flash, &wp))
+		return -1;
+
+	if (generic_range_table(flash, &r, &num_entries))
 		return -1;
 
 	bp_mask = generic_get_bp_mask(wp);
 
-	for (i = 0, r = &wp->descrs[0]; i < num_entries; i++, r++) {
+	for (i = 0; i < num_entries; i++, r++) {
 		msg_cspew("comparing range 0x%x 0x%x / 0x%x 0x%x\n",
 			  start, len, r->range.start, r->range.len);
 		if ((start == r->range.start) && (len == r->range.len)) {
@@ -2462,7 +2501,10 @@ static int generic_status_to_range(const struct flashctx *flash,
 	uint8_t sr1_bp;
 	struct modifier_bits m;
 
-	if (generic_range_table(flash, &wp, &num_entries))
+	if (get_wp_context(flash, &wp))
+		return -1;
+
+	if (generic_range_table(flash, &r, &num_entries))
 		return -1;
 
 	/* modifier bits may be compared more than once, so get them here */
@@ -2471,7 +2513,7 @@ static int generic_status_to_range(const struct flashctx *flash,
 
 	sr1_bp = (sr1 >> wp->sr1.bp0_pos) & ((1 << wp->sr1.bp_bits) - 1);
 
-	for (i = 0, r = &wp->descrs[0]; i < num_entries; i++, r++) {
+	for (i = 0; i < num_entries; i++, r++) {
 		if (use_s25f_modifier_bits(flash)) {
 			if (memcmp(&m, &r->m, sizeof(m)))
 				continue;
@@ -2525,9 +2567,8 @@ static int generic_set_srp0(const struct flashctx *flash, int enable)
 {
 	uint8_t status, expected, check_mask;
 	struct wp_context *wp;
-	int num_entries;
 
-	if (generic_range_table(flash, &wp, &num_entries))
+	if (get_wp_context(flash, &wp))
 		return -1;
 
 	expected = spi_read_status_register(flash);
@@ -2584,14 +2625,12 @@ static int generic_disable_writeprotect(const struct flashctx *flash)
 
 static int generic_list_ranges(const struct flashctx *flash)
 {
-	struct wp_context *wp;
 	struct wp_range_descriptor *r;
 	int i, num_entries;
 
-	if (generic_range_table(flash, &wp, &num_entries))
+	if (generic_range_table(flash, &r, &num_entries))
 		return -1;
 
-	r = &wp->descrs[0];
 	for (i = 0; i < num_entries; i++) {
 		msg_cinfo("start: 0x%06x, length: 0x%06x\n",
 		          r->range.start, r->range.len);
@@ -2607,9 +2646,9 @@ static int wp_context_status(const struct flashctx *flash)
 	unsigned int start, len;
 	int ret = 0;
 	struct wp_context *wp;
-	int num_entries, wp_en;
+	int wp_en;
 
-	if (generic_range_table(flash, &wp, &num_entries))
+	if (get_wp_context(flash, &wp))
 		return -1;
 
 	sr1 = spi_read_status_register(flash);
