@@ -74,17 +74,6 @@ struct wp_range_descriptor {
 struct wp_context {
 	struct status_register_layout sr1;	/* status register 1 */
 	struct wp_range_descriptor *descrs;
-
-	/*
-	 * Some chips store modifier bits in one or more special control
-	 * registers instead of the status register like many older SPI NOR
-	 * flash chips did. get_modifier_bits() and set_modifier_bits() will do
-	 * any chip-specific operations necessary to get/set these bit values.
-	 */
-	int (*get_modifier_bits)(const struct flashctx *flash,
-			struct modifier_bits *m);
-	int (*set_modifier_bits)(const struct flashctx *flash,
-			struct modifier_bits *m);
 };
 
 struct w25q_status {
@@ -2247,8 +2236,6 @@ static struct wp_range_descriptor s25fs128s_ranges[] = {
 
 static struct wp_context s25fs128s_wp = {
 	.sr1 = { .bp0_pos = 2, .bp_bits = 3, .srp_pos = 7 },
-	.get_modifier_bits = s25f_get_modifier_bits,
-	.set_modifier_bits = s25f_set_modifier_bits,
 };
 
 
@@ -2274,8 +2261,6 @@ static struct wp_range_descriptor s25fl256s_ranges[] = {
 
 static struct wp_context s25fl256s_wp = {
 	.sr1 = { .bp0_pos = 2, .bp_bits = 3, .srp_pos = 7 },
-	.get_modifier_bits = s25f_get_modifier_bits,
-	.set_modifier_bits = s25f_set_modifier_bits,
 };
 
 /* Given a flash chip, this function returns its writeprotect info. */
@@ -2398,6 +2383,20 @@ static int generic_range_table(const struct flashctx *flash,
 	return 0;
 }
 
+/* Determines if special s25f-specific functions need to be used to access a
+ * given chip's modifier bits. Very much a hard-coded special case hack, but it
+ * is also very easy to replace once a proper abstraction for accessing
+ * specific modifier bits is added.  */
+static int use_s25f_modifier_bits(const struct flashctx *flash)
+{
+	bool model_match =
+		flash->chip->model_id == SPANSION_S25FS128S_L ||
+		flash->chip->model_id == SPANSION_S25FS128S_S ||
+		flash->chip->model_id == SPANSION_S25FL256S_UL ||
+		flash->chip->model_id == SPANSION_S25FL256S_US;
+	return (flash->chip->manufacture_id == SPANSION_ID) && model_match;
+}
+
 static uint8_t generic_get_bp_mask(struct wp_context *wp)
 {
 	return ((1 << (wp->sr1.bp0_pos + wp->sr1.bp_bits)) - 1) ^ \
@@ -2433,8 +2432,8 @@ static int generic_range_to_status(const struct flashctx *flash,
 			*status &= ~(bp_mask);
 			*status |= r->bp << (wp->sr1.bp0_pos);
 
-			if (wp->set_modifier_bits) {
-				if (wp->set_modifier_bits(flash, &r->m) < 0) {
+			if (use_s25f_modifier_bits(flash)) {
+				if (s25f_set_modifier_bits(flash, &r->m) < 0) {
 					msg_cerr("error setting modifier bits for range.\n");
 					return -1;
 				}
@@ -2467,13 +2466,13 @@ static int generic_status_to_range(const struct flashctx *flash,
 		return -1;
 
 	/* modifier bits may be compared more than once, so get them here */
-	if (wp->get_modifier_bits && wp->get_modifier_bits(flash, &m) < 0)
-			return -1;
+	if (use_s25f_modifier_bits(flash) && s25f_get_modifier_bits(flash, &m) < 0)
+		return -1;
 
 	sr1_bp = (sr1 >> wp->sr1.bp0_pos) & ((1 << wp->sr1.bp_bits) - 1);
 
 	for (i = 0, r = &wp->descrs[0]; i < num_entries; i++, r++) {
-		if (wp->get_modifier_bits) {
+		if (use_s25f_modifier_bits(flash)) {
 			if (memcmp(&m, &r->m, sizeof(m)))
 				continue;
 		}
