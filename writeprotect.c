@@ -1005,57 +1005,7 @@ static int w25_range_table(const struct flashctx *flash,
                            struct wp_range_descriptor **descrs,
                            int *num_entries)
 {
-	*descrs = 0;
-	*num_entries = 0;
-
-	switch (flash->chip->manufacture_id) {
-	case WINBOND_NEX_ID:
-	case EON_ID_NOPREFIX:
-	case MACRONIX_ID:
-	case ST_ID:
-	case GIGADEVICE_ID:
-		return generic_range_table(flash, descrs, num_entries);
-	case AMIC_ID_NOPREFIX:
-		switch(flash->chip->model_id) {
-		case AMIC_A25L040:
-			*descrs = a25l040_ranges;
-			*num_entries = ARRAY_SIZE(a25l040_ranges);
-			break;
-		default:
-			msg_cerr("%s() %d: AMIC flash chip mismatch"
-				 " (0x%04x), aborting\n", __func__, __LINE__,
-				 flash->chip->model_id);
-			return -1;
-		}
-		break;
-	case ATMEL_ID:
-		switch(flash->chip->model_id) {
-		case ATMEL_AT25SF128A:
-		case ATMEL_AT25SL128A:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = w25rq128_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
-			} else {
-				/* CMP == 0 */
-				*descrs = w25rq128_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
-			}
-			break;
-		default:
-			msg_cerr("%s() %d: Atmel flash chip mismatch"
-				 " (0x%04x), aborting\n", __func__, __LINE__,
-				 flash->chip->model_id);
-			return -1;
-		}
-		break;
-	default:
-		msg_cerr("%s: flash vendor (0x%x) not found, aborting\n",
-		         __func__, flash->chip->manufacture_id);
-		return -1;
-	}
-
-	return 0;
+	return generic_range_table(flash, descrs, num_entries);
 }
 
 int w25_range_to_status(const struct flashctx *flash,
@@ -2090,6 +2040,40 @@ static int generic_range_table(const struct flashctx *flash,
 	*num_entries = 0;
 
 	switch (flash->chip->manufacture_id) {
+	case AMIC_ID_NOPREFIX:
+		switch(flash->chip->model_id) {
+		case AMIC_A25L040:
+			*descrs = a25l040_ranges;
+			*num_entries = ARRAY_SIZE(a25l040_ranges);
+			break;
+		default:
+			msg_cerr("%s() %d: AMIC flash chip mismatch"
+				 " (0x%04x), aborting\n", __func__, __LINE__,
+				 flash->chip->model_id);
+			return -1;
+		}
+		break;
+	case ATMEL_ID:
+		switch(flash->chip->model_id) {
+		case ATMEL_AT25SF128A:
+		case ATMEL_AT25SL128A:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq128_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq128_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
+			}
+			break;
+		default:
+			msg_cerr("%s() %d: Atmel flash chip mismatch"
+				 " (0x%04x), aborting\n", __func__, __LINE__,
+				 flash->chip->model_id);
+			return -1;
+		}
+		break;
 	case WINBOND_NEX_ID:
 		switch(flash->chip->model_id) {
 		case WINBOND_NEX_W25X10:
