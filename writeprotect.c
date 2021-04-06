@@ -816,6 +816,10 @@ static struct wp_range_descriptor a25l040_ranges[] = {
 	{ .m = { .sec = X, .tb = X }, 0x7, {0x00000, 512 * 1024} },
 };
 
+static int range_table(const struct flashctx *flash,
+                           struct wp_range_descriptor **descrs,
+                           int *num_entries);
+
 struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 	// FIXME: The .wp field should be deleted from from struct flashchip
 	// completly, but linux_mtd and cros_ec still assign their own values
@@ -996,18 +1000,6 @@ static uint8_t mx25l_read_config_register(const struct flashctx *flash)
 	return readarr[0];
 }
 
-static int generic_range_table(const struct flashctx *flash,
-                           struct wp_range_descriptor **descrs,
-                           int *num_entries);
-
-/* Given a flash chip, this function returns its range table. */
-static int w25_range_table(const struct flashctx *flash,
-                           struct wp_range_descriptor **descrs,
-                           int *num_entries)
-{
-	return generic_range_table(flash, descrs, num_entries);
-}
-
 int w25_range_to_status(const struct flashctx *flash,
                         unsigned int start, unsigned int len,
                         struct w25q_status *status)
@@ -1016,7 +1008,7 @@ int w25_range_to_status(const struct flashctx *flash,
 	int i, range_found = 0;
 	int num_entries;
 
-	if (w25_range_table(flash, &descrs, &num_entries))
+	if (range_table(flash, &descrs, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
@@ -1052,7 +1044,7 @@ int w25_status_to_range(const struct flashctx *flash,
 	int i, status_found = 0;
 	int num_entries;
 
-	if (w25_range_table(flash, &descrs, &num_entries))
+	if (range_table(flash, &descrs, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
@@ -1162,7 +1154,7 @@ static int w25q_large_range_to_status(const struct flashctx *flash,
 	int i, range_found = 0;
 	int num_entries;
 
-	if (w25_range_table(flash, &descrs, &num_entries))
+	if (range_table(flash, &descrs, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
@@ -1205,7 +1197,7 @@ static int w25_large_status_to_range(const struct flashctx *flash,
 	int i, status_found = 0;
 	int num_entries;
 
-	if (w25_range_table(flash, &descrs, &num_entries))
+	if (range_table(flash, &descrs, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
@@ -1369,7 +1361,7 @@ static int w25_list_ranges(const struct flashctx *flash)
 	struct wp_range_descriptor *descrs;
 	int i, num_entries;
 
-	if (w25_range_table(flash, &descrs, &num_entries))
+	if (range_table(flash, &descrs, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
@@ -2033,7 +2025,7 @@ static int get_sr1_layout(
 }
 
 /* Given a flash chip, this function returns its writeprotect info. */
-static int generic_range_table(const struct flashctx *flash,
+static int range_table(const struct flashctx *flash,
                            struct wp_range_descriptor **descrs,
                            int *num_entries)
 {
@@ -2432,7 +2424,7 @@ static int generic_range_to_status(const struct flashctx *flash,
 	if (get_sr1_layout(flash, &sr1))
 		return -1;
 
-	if (generic_range_table(flash, &r, &num_entries))
+	if (range_table(flash, &r, &num_entries))
 		return -1;
 
 	bp_mask = generic_get_bp_mask(sr1);
@@ -2477,7 +2469,7 @@ static int generic_status_to_range(const struct flashctx *flash,
 	if (get_sr1_layout(flash, &sr1_layout))
 		return -1;
 
-	if (generic_range_table(flash, &r, &num_entries))
+	if (range_table(flash, &r, &num_entries))
 		return -1;
 
 	/* modifier bits may be compared more than once, so get them here */
@@ -2601,7 +2593,7 @@ static int generic_list_ranges(const struct flashctx *flash)
 	struct wp_range_descriptor *r;
 	int i, num_entries;
 
-	if (generic_range_table(flash, &r, &num_entries))
+	if (range_table(flash, &r, &num_entries))
 		return -1;
 
 	for (i = 0; i < num_entries; i++) {
