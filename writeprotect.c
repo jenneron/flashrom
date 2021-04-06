@@ -971,22 +971,6 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 	return NULL;
 }
 
-static uint8_t do_read_status(const struct flashctx *flash)
-{
-	if (flash->chip->read_status)
-		return flash->chip->read_status(flash);
-	else
-		return spi_read_status_register(flash);
-}
-
-static int do_write_status(const struct flashctx *flash, int status)
-{
-	if (flash->chip->write_status)
-		return flash->chip->write_status(flash, status);
-	else
-		return spi_write_status_register(flash, status);
-}
-
 /* FIXME: Move to spi25.c if it's a JEDEC standard opcode */
 static uint8_t w25q_read_status_register_2(const struct flashctx *flash)
 {
@@ -1406,7 +1390,7 @@ static int w25_set_range(const struct flashctx *flash,
 	int expected = 0;
 
 	memset(&status, 0, sizeof(status));
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	memcpy(&status, &tmp, 1);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, tmp);
 
@@ -1423,9 +1407,9 @@ static int w25_set_range(const struct flashctx *flash,
 	msg_cdbg("status.srp0: %x\n", status.srp0);
 
 	memcpy(&expected, &status, sizeof(status));
-	do_write_status(flash, expected);
+	spi_write_status_register(flash, expected);
 
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, tmp);
 	if ((tmp & MASK_WP_AREA) != (expected & MASK_WP_AREA)) {
 		msg_cerr("expected=0x%02x, but actual=0x%02x.\n",
@@ -1445,7 +1429,7 @@ static int w25_wp_status(const struct flashctx *flash)
 	int ret = 0;
 
 	memset(&status, 0, sizeof(status));
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	memcpy(&status, &tmp, 1);
 	msg_cinfo("WP: status: 0x%02x\n", tmp);
 	msg_cinfo("WP: status.srp0: %x\n", status.srp0);
@@ -1558,7 +1542,7 @@ static int w25q_large_set_range(const struct flashctx *flash,
 	int expected = 0;
 
 	memset(&status, 0, sizeof(status));
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	memcpy(&status, &tmp, 1);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, tmp);
 
@@ -1575,9 +1559,9 @@ static int w25q_large_set_range(const struct flashctx *flash,
 	msg_cdbg("status.srp0: %x\n", status.srp0);
 
 	memcpy(&expected, &status, sizeof(status));
-	do_write_status(flash, expected);
+	spi_write_status_register(flash, expected);
 
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, tmp);
 	if ((tmp & MASK_WP_AREA_LARGE) != (expected & MASK_WP_AREA_LARGE)) {
 		msg_cerr("expected=0x%02x, but actual=0x%02x.\n",
@@ -1597,7 +1581,7 @@ static int w25q_large_wp_status(const struct flashctx *flash)
 	int ret = 0;
 
 	memset(&sr1, 0, sizeof(sr1));
-	tmp[0] = do_read_status(flash);
+	tmp[0] = spi_read_status_register(flash);
 	memcpy(&sr1, &tmp[0], 1);
 
 	memset(&sr2, 0, sizeof(sr2));
@@ -1629,16 +1613,16 @@ static int w25_set_srp0(const struct flashctx *flash, int enable)
 	int expected = 0;
 
 	memset(&status, 0, sizeof(status));
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	/* FIXME: this is NOT endian-free copy. */
 	memcpy(&status, &tmp, 1);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, tmp);
 
 	status.srp0 = enable ? 1 : 0;
 	memcpy(&expected, &status, sizeof(status));
-	do_write_status(flash, expected);
+	spi_write_status_register(flash, expected);
 
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, tmp);
 	if ((tmp & MASK_WP_AREA) != (expected & MASK_WP_AREA))
 		return 1;
@@ -1699,7 +1683,7 @@ static int w25q_wp_status(const struct flashctx *flash)
 	int ret = 0;
 
 	memset(&sr1, 0, sizeof(sr1));
-	tmp[0] = do_read_status(flash);
+	tmp[0] = spi_read_status_register(flash);
 	memcpy(&sr1, &tmp[0], 1);
 
 	memset(&sr2, 0, sizeof(sr2));
@@ -1774,7 +1758,7 @@ static int w25q_set_srp1(const struct flashctx *flash, int enable)
 	struct w25q_status_2 sr2;
 	uint8_t tmp, expected;
 
-	tmp = do_read_status(flash);
+	tmp = spi_read_status_register(flash);
 	memcpy(&sr1, &tmp, 1);
 	tmp = w25q_read_status_register_2(flash);
 	memcpy(&sr2, &tmp, 1);
@@ -1865,7 +1849,7 @@ static int w25q_enable_writeprotect(const struct flashctx *flash,
 			break;
 		}
 
-		tmp = do_read_status(flash);
+		tmp = spi_read_status_register(flash);
 		memcpy(&sr1, &tmp, 1);
 		if (sr1.srp0)
 			ret = 0;
@@ -1889,7 +1873,7 @@ static int w25q_enable_writeprotect(const struct flashctx *flash,
 
 		break;
 	case WP_MODE_PERMANENT:
-		tmp = do_read_status(flash);
+		tmp = spi_read_status_register(flash);
 		memcpy(&sr1, &tmp, 1);
 		if (sr1.srp0 == 0) {
 			ret = w25_set_srp0(flash, 1);
@@ -2527,16 +2511,16 @@ static int generic_set_range(const struct flashctx *flash,
 {
 	uint8_t status, expected, check_mask;
 
-	status = do_read_status(flash);
+	status = spi_read_status_register(flash);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, status);
 
 	expected = status;	/* preserve non-bp bits */
 	if (generic_range_to_status(flash, start, len, &expected, &check_mask))
 		return -1;
 
-	do_write_status(flash, expected);
+	spi_write_status_register(flash, expected);
 
-	status = do_read_status(flash);
+	status = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, status);
 	if ((status & check_mask) != (expected & check_mask)) {
 		msg_cerr("expected=0x%02x, but actual=0x%02x. check mask=0x%02x\n",
@@ -2556,7 +2540,7 @@ static int generic_set_srp0(const struct flashctx *flash, int enable)
 	if (generic_range_table(flash, &wp, &num_entries))
 		return -1;
 
-	expected = do_read_status(flash);
+	expected = spi_read_status_register(flash);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, expected);
 
 	if (enable)
@@ -2564,9 +2548,9 @@ static int generic_set_srp0(const struct flashctx *flash, int enable)
 	else
 		expected &= ~(1 << wp->sr1.srp_pos);
 
-	do_write_status(flash, expected);
+	spi_write_status_register(flash, expected);
 
-	status = do_read_status(flash);
+	status = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, status);
 
 	check_mask = generic_get_status_check_mask(wp);
@@ -2638,7 +2622,7 @@ static int wp_context_status(const struct flashctx *flash)
 	if (generic_range_table(flash, &wp, &num_entries))
 		return -1;
 
-	sr1 = do_read_status(flash);
+	sr1 = spi_read_status_register(flash);
 	wp_en = (sr1 >> wp->sr1.srp_pos) & 1;
 
 	msg_cinfo("WP: status: 0x%04x\n", sr1);
