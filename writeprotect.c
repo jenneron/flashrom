@@ -1012,55 +1012,8 @@ static int w25_range_table(const struct flashctx *flash,
 
 	switch (flash->chip->manufacture_id) {
 	case WINBOND_NEX_ID:
-		return generic_range_table(flash, descrs, num_entries);
 	case EON_ID_NOPREFIX:
-		switch (flash->chip->model_id) {
-		case EON_EN25F40:
-			*descrs = en25f40_ranges;
-			*num_entries = ARRAY_SIZE(en25f40_ranges);
-			break;
-		case EON_EN25Q40:
-			*descrs = en25q40_ranges;
-			*num_entries = ARRAY_SIZE(en25q40_ranges);
-			break;
-		case EON_EN25Q80:
-			*descrs = en25q80_ranges;
-			*num_entries = ARRAY_SIZE(en25q80_ranges);
-			break;
-		case EON_EN25Q32:
-			*descrs = en25q32_ranges;
-			*num_entries = ARRAY_SIZE(en25q32_ranges);
-			break;
-		case EON_EN25Q64:
-			*descrs = en25q64_ranges;
-			*num_entries = ARRAY_SIZE(en25q64_ranges);
-			break;
-		case EON_EN25Q128:
-			*descrs = en25q128_ranges;
-			*num_entries = ARRAY_SIZE(en25q128_ranges);
-			break;
-		case EON_EN25QH128:
-			if (w25q_read_status_register_2(flash) & (1 << 6)) {
-				/* CMP == 1 */
-				*descrs = w25rq128_cmp1_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
-			} else {
-				/* CMP == 0 */
-				*descrs = w25rq128_cmp0_ranges;
-				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
-			}
-			break;
-		case EON_EN25S64:
-			*descrs = en25s64_ranges;
-			*num_entries = ARRAY_SIZE(en25s64_ranges);
-			break;
-		default:
-			msg_cerr("%s():%d: EON flash chip mismatch (0x%04x)"
-			         ", aborting\n", __func__, __LINE__,
-				 flash->chip->model_id);
-			return -1;
-		}
-		break;
+		return generic_range_table(flash, descrs, num_entries);
 	case MACRONIX_ID:
 		switch (flash->chip->model_id) {
 		case MACRONIX_MX25L1005:
@@ -2313,6 +2266,55 @@ static int generic_range_table(const struct flashctx *flash,
 			msg_cerr("%s() %d: WINBOND flash chip mismatch (0x%04x)"
 			         ", aborting\n", __func__, __LINE__,
 			         flash->chip->model_id);
+			return -1;
+		}
+		break;
+
+	case EON_ID_NOPREFIX:
+		switch (flash->chip->model_id) {
+		case EON_EN25F40:
+			*descrs = en25f40_ranges;
+			*num_entries = ARRAY_SIZE(en25f40_ranges);
+			break;
+		case EON_EN25Q40:
+			*descrs = en25q40_ranges;
+			*num_entries = ARRAY_SIZE(en25q40_ranges);
+			break;
+		case EON_EN25Q80:
+			*descrs = en25q80_ranges;
+			*num_entries = ARRAY_SIZE(en25q80_ranges);
+			break;
+		case EON_EN25Q32:
+			*descrs = en25q32_ranges;
+			*num_entries = ARRAY_SIZE(en25q32_ranges);
+			break;
+		case EON_EN25Q64:
+			*descrs = en25q64_ranges;
+			*num_entries = ARRAY_SIZE(en25q64_ranges);
+			break;
+		case EON_EN25Q128:
+			*descrs = en25q128_ranges;
+			*num_entries = ARRAY_SIZE(en25q128_ranges);
+			break;
+		case EON_EN25QH128:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq128_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq128_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
+			}
+			break;
+		case EON_EN25S64:
+			*descrs = en25s64_ranges;
+			*num_entries = ARRAY_SIZE(en25s64_ranges);
+			break;
+		default:
+			msg_cerr("%s():%d: EON flash chip mismatch (0x%04x)"
+			         ", aborting\n", __func__, __LINE__,
+				 flash->chip->model_id);
 			return -1;
 		}
 		break;
