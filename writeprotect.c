@@ -71,10 +71,6 @@ struct wp_range_descriptor {
 	struct wp_range range;
 };
 
-struct wp_context {
-	struct status_register_layout sr1;      /* status register 1 */
-};
-
 struct w25q_status {
 	/* this maps to register layout -- do not change ordering */
 	unsigned char busy : 1;
@@ -2009,9 +2005,9 @@ static struct wp_range_descriptor gd25q32_cmp1_ranges[] = {
 	{ { }, 0x1e, {0x080000, 4064 * 1024} },
 };
 
-static struct wp_context gd25q32_wp = {
+static struct status_register_layout gd25q32_sr1 = {
 	/* TODO: map second status register */
-	.sr1 = { .bp0_pos = 2, .bp_bits = 5, .srp_pos = 7 },
+	.bp0_pos = 2, .bp_bits = 5, .srp_pos = 7
 };
 
 static struct wp_range_descriptor gd25q128_cmp0_ranges[] = {
@@ -2097,9 +2093,9 @@ static struct wp_range_descriptor gd25q128_cmp1_ranges[] = {
 	{ { .tb = 1 }, 0x1e, {0x008000, 16352 * 1024} },
 };
 
-static struct wp_context gd25q128_wp = {
+static struct status_register_layout gd25q128_sr1 = {
 	/* TODO: map second and third status registers */
-	.sr1 = { .bp0_pos = 2, .bp_bits = 5, .srp_pos = 7 },
+	.bp0_pos = 2, .bp_bits = 5, .srp_pos = 7
 };
 
 /* FIXME: MX25L6406 has same ID as MX25L6405D */
@@ -2123,8 +2119,8 @@ static struct wp_range_descriptor mx25l6406e_ranges[] = {
 	{ { }, 0xf, {0x000000, 64 * 128 * 1024} },	/* all */
 };
 
-static struct wp_context mx25l6406e_wp = {
-	.sr1 = { .bp0_pos = 2, .bp_bits = 4, .srp_pos = 7 },
+static struct status_register_layout mx25l6406e_sr1 = {
+	.bp0_pos = 2, .bp_bits = 4, .srp_pos = 7
 };
 
 static struct wp_range_descriptor mx25l6495f_tb0_ranges[] = {
@@ -2166,8 +2162,8 @@ static struct wp_range_descriptor mx25l6495f_tb1_ranges[] = {
 	{ { }, 0xf, {0x000000, 64 * 128 * 1024} },	/* all */
 };
 
-static struct wp_context mx25l6495f_wp = {
-	.sr1 = { .bp0_pos = 2, .bp_bits = 4, .srp_pos = 7 },
+static struct status_register_layout mx25l6495f_sr1 = {
+	.bp0_pos = 2, .bp_bits = 4, .srp_pos = 7
 };
 
 static struct wp_range_descriptor mx25l25635f_tb0_ranges[] = {
@@ -2208,8 +2204,8 @@ static struct wp_range_descriptor mx25l25635f_tb1_ranges[] = {
 	{ { }, 0xf, {0x000000, 64 * 512 * 1024} },	/* all */
 };
 
-static struct wp_context mx25l25635f_wp = {
-	.sr1 = { .bp0_pos = 2, .bp_bits = 4, .srp_pos = 7 },
+static struct status_register_layout mx25l25635f_sr1 = {
+	.bp0_pos = 2, .bp_bits = 4, .srp_pos = 7
 };
 
 static struct wp_range_descriptor s25fs128s_ranges[] = {
@@ -2232,8 +2228,8 @@ static struct wp_range_descriptor s25fs128s_ranges[] = {
 	{ { .tb = 0 }, 0x7, {0x000000, 16384 * 1024} },	/* all */
 };
 
-static struct wp_context s25fs128s_wp = {
-	.sr1 = { .bp0_pos = 2, .bp_bits = 3, .srp_pos = 7 },
+static struct status_register_layout s25fs128s_sr1 = {
+	.bp0_pos = 2, .bp_bits = 3, .srp_pos = 7
 };
 
 
@@ -2257,35 +2253,35 @@ static struct wp_range_descriptor s25fl256s_ranges[] = {
 	{ { .tb = 0 }, 0x7, {0x000000, 32768 * 1024} },		/* all */
 };
 
-static struct wp_context s25fl256s_wp = {
-	.sr1 = { .bp0_pos = 2, .bp_bits = 3, .srp_pos = 7 },
+static struct status_register_layout s25fl256s_sr1 = {
+	.bp0_pos = 2, .bp_bits = 3, .srp_pos = 7
 };
 
-static int get_wp_context(
-	const struct flashctx *flash, struct wp_context **wp)
+static int get_sr1_layout(
+	const struct flashctx *flash, struct status_register_layout *sr1)
 {
 	switch (flash->chip->manufacture_id) {
 	case GIGADEVICE_ID:
 		switch(flash->chip->model_id) {
 
 		case GIGADEVICE_GD25Q32:
-			*wp = &gd25q32_wp;
+			*sr1 = gd25q32_sr1;
 			return 0;
 		case GIGADEVICE_GD25LQ128CD:
-			*wp = &gd25q128_wp;
+			*sr1 = gd25q128_sr1;
 			return 0;
 		}
 		break;
 	case MACRONIX_ID:
 		switch (flash->chip->model_id) {
 		case MACRONIX_MX25L6405:
-			*wp = &mx25l6406e_wp;
+			*sr1 = mx25l6406e_sr1;
 			return 0;
 		case MACRONIX_MX25L6495F:
-			*wp = &mx25l6495f_wp;
+			*sr1 = mx25l6495f_sr1;
 			return 0;
 		case MACRONIX_MX25L25635F:
-			*wp = &mx25l25635f_wp;
+			*sr1 = mx25l25635f_sr1;
 			return 0;
 		}
 		break;
@@ -2293,11 +2289,11 @@ static int get_wp_context(
 		switch (flash->chip->model_id) {
 		case SPANSION_S25FS128S_L:
 		case SPANSION_S25FS128S_S:
-			*wp = &s25fs128s_wp;
+			*sr1 = s25fs128s_sr1;
 			return 0;
 		case SPANSION_S25FL256S_UL:
 		case SPANSION_S25FL256S_US:
-			*wp = &s25fl256s_wp;
+			*sr1 = s25fl256s_sr1;
 			return 0;
 		}
 		break;
@@ -2433,15 +2429,15 @@ static int use_s25f_modifier_bits(const struct flashctx *flash)
 	return (flash->chip->manufacture_id == SPANSION_ID) && model_match;
 }
 
-static uint8_t generic_get_bp_mask(struct wp_context *wp)
+static uint8_t generic_get_bp_mask(struct status_register_layout sr1)
 {
-	return ((1 << (wp->sr1.bp0_pos + wp->sr1.bp_bits)) - 1) ^ \
-		  ((1 << wp->sr1.bp0_pos) - 1);
+	return ((1 << (sr1.bp0_pos + sr1.bp_bits)) - 1) ^ \
+		  ((1 << sr1.bp0_pos) - 1);
 }
 
-static uint8_t generic_get_status_check_mask(struct wp_context *wp)
+static uint8_t generic_get_status_check_mask(struct status_register_layout sr1)
 {
-	return generic_get_bp_mask(wp) | 1 << wp->sr1.srp_pos;
+	return generic_get_bp_mask(sr1) | 1 << sr1.srp_pos;
 }
 
 /* Given a [start, len], this function finds a block protect bit combination
@@ -2451,25 +2447,25 @@ static int generic_range_to_status(const struct flashctx *flash,
                         unsigned int start, unsigned int len,
                         uint8_t *status, uint8_t *check_mask)
 {
-	struct wp_context *wp;
+	struct status_register_layout sr1;
 	struct wp_range_descriptor *r;
 	int i, range_found = 0, num_entries;
 	uint8_t bp_mask;
 
-	if (get_wp_context(flash, &wp))
+	if (get_sr1_layout(flash, &sr1))
 		return -1;
 
 	if (generic_range_table(flash, &r, &num_entries))
 		return -1;
 
-	bp_mask = generic_get_bp_mask(wp);
+	bp_mask = generic_get_bp_mask(sr1);
 
 	for (i = 0; i < num_entries; i++, r++) {
 		msg_cspew("comparing range 0x%x 0x%x / 0x%x 0x%x\n",
 			  start, len, r->range.start, r->range.len);
 		if ((start == r->range.start) && (len == r->range.len)) {
 			*status &= ~(bp_mask);
-			*status |= r->bp << (wp->sr1.bp0_pos);
+			*status |= r->bp << (sr1.bp0_pos);
 
 			if (use_s25f_modifier_bits(flash)) {
 				if (s25f_set_modifier_bits(flash, &r->m) < 0) {
@@ -2488,20 +2484,20 @@ static int generic_range_to_status(const struct flashctx *flash,
 		return -1;
 	}
 
-	*check_mask = generic_get_status_check_mask(wp);
+	*check_mask = generic_get_status_check_mask(sr1);
 	return 0;
 }
 
 static int generic_status_to_range(const struct flashctx *flash,
 		const uint8_t sr1, unsigned int *start, unsigned int *len)
 {
-	struct wp_context *wp;
+	struct status_register_layout sr1_layout;
 	struct wp_range_descriptor *r;
 	int num_entries, i, status_found = 0;
 	uint8_t sr1_bp;
 	struct modifier_bits m;
 
-	if (get_wp_context(flash, &wp))
+	if (get_sr1_layout(flash, &sr1_layout))
 		return -1;
 
 	if (generic_range_table(flash, &r, &num_entries))
@@ -2511,7 +2507,7 @@ static int generic_status_to_range(const struct flashctx *flash,
 	if (use_s25f_modifier_bits(flash) && s25f_get_modifier_bits(flash, &m) < 0)
 		return -1;
 
-	sr1_bp = (sr1 >> wp->sr1.bp0_pos) & ((1 << wp->sr1.bp_bits) - 1);
+	sr1_bp = (sr1 >> sr1_layout.bp0_pos) & ((1 << sr1_layout.bp_bits) - 1);
 
 	for (i = 0; i < num_entries; i++, r++) {
 		if (use_s25f_modifier_bits(flash)) {
@@ -2566,25 +2562,25 @@ static int generic_set_range(const struct flashctx *flash,
 static int generic_set_srp0(const struct flashctx *flash, int enable)
 {
 	uint8_t status, expected, check_mask;
-	struct wp_context *wp;
+	struct status_register_layout sr1;
 
-	if (get_wp_context(flash, &wp))
+	if (get_sr1_layout(flash, &sr1))
 		return -1;
 
 	expected = spi_read_status_register(flash);
 	msg_cdbg("%s: old status: 0x%02x\n", __func__, expected);
 
 	if (enable)
-		expected |= 1 << wp->sr1.srp_pos;
+		expected |= 1 << sr1.srp_pos;
 	else
-		expected &= ~(1 << wp->sr1.srp_pos);
+		expected &= ~(1 << sr1.srp_pos);
 
 	spi_write_status_register(flash, expected);
 
 	status = spi_read_status_register(flash);
 	msg_cdbg("%s: new status: 0x%02x\n", __func__, status);
 
-	check_mask = generic_get_status_check_mask(wp);
+	check_mask = generic_get_status_check_mask(sr1);
 	msg_cdbg("%s: check mask: 0x%02x\n", __func__, check_mask);
 	if ((status & check_mask) != (expected & check_mask)) {
 		msg_cerr("expected=0x%02x, but actual=0x%02x. check mask=0x%02x\n",
@@ -2645,14 +2641,14 @@ static int wp_context_status(const struct flashctx *flash)
 	uint8_t sr1;
 	unsigned int start, len;
 	int ret = 0;
-	struct wp_context *wp;
+	struct status_register_layout sr1_layout;
 	int wp_en;
 
-	if (get_wp_context(flash, &wp))
+	if (get_sr1_layout(flash, &sr1_layout))
 		return -1;
 
 	sr1 = spi_read_status_register(flash);
-	wp_en = (sr1 >> wp->sr1.srp_pos) & 1;
+	wp_en = (sr1 >> sr1_layout.srp_pos) & 1;
 
 	msg_cinfo("WP: status: 0x%04x\n", sr1);
 	msg_cinfo("WP: status.srp0: %x\n", wp_en);
