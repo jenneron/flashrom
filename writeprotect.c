@@ -1005,68 +1005,14 @@ static int w25_range_table(const struct flashctx *flash,
                            struct wp_range_descriptor **descrs,
                            int *num_entries)
 {
-	uint8_t cr;
-
 	*descrs = 0;
 	*num_entries = 0;
 
 	switch (flash->chip->manufacture_id) {
 	case WINBOND_NEX_ID:
 	case EON_ID_NOPREFIX:
-		return generic_range_table(flash, descrs, num_entries);
 	case MACRONIX_ID:
-		switch (flash->chip->model_id) {
-		case MACRONIX_MX25L1005:
-			*descrs = mx25l1005_ranges;
-			*num_entries = ARRAY_SIZE(mx25l1005_ranges);
-			break;
-		case MACRONIX_MX25L2005:
-			*descrs = mx25l2005_ranges;
-			*num_entries = ARRAY_SIZE(mx25l2005_ranges);
-			break;
-		case MACRONIX_MX25L4005:
-			*descrs = mx25l4005_ranges;
-			*num_entries = ARRAY_SIZE(mx25l4005_ranges);
-			break;
-		case MACRONIX_MX25L8005:
-			*descrs = mx25l8005_ranges;
-			*num_entries = ARRAY_SIZE(mx25l8005_ranges);
-			break;
-		case MACRONIX_MX25L1605:
-			/* FIXME: MX25L1605 and MX25L1605D have different write
-			 * protection capabilities, but share IDs */
-			*descrs = mx25l1605d_ranges;
-			*num_entries = ARRAY_SIZE(mx25l1605d_ranges);
-			break;
-		case MACRONIX_MX25L3205:
-			*descrs = mx25l3205d_ranges;
-			*num_entries = ARRAY_SIZE(mx25l3205d_ranges);
-			break;
-		case MACRONIX_MX25U3235E:
-			*descrs = mx25u3235e_ranges;
-			*num_entries = ARRAY_SIZE(mx25u3235e_ranges);
-			break;
-		case MACRONIX_MX25U6435E:
-			*descrs = mx25u6435e_ranges;
-			*num_entries = ARRAY_SIZE(mx25u6435e_ranges);
-			break;
-		case MACRONIX_MX25U12835E:
-			cr = mx25l_read_config_register(flash);
-			if (cr & MX25U12835E_TB) {	/* T/B == 1 */
-				*descrs = mx25u12835e_tb1_ranges;
-				*num_entries = ARRAY_SIZE(mx25u12835e_tb1_ranges);
-			} else {			/* T/B == 0 */
-				*descrs = mx25u12835e_tb0_ranges;
-				*num_entries = ARRAY_SIZE(mx25u12835e_tb0_ranges);
-			}
-			break;
-		default:
-			msg_cerr("%s():%d: MXIC flash chip mismatch (0x%04x)"
-			         ", aborting\n", __func__, __LINE__,
-			         flash->chip->model_id);
-			return -1;
-		}
-		break;
+		return generic_range_table(flash, descrs, num_entries);
 	case ST_ID:
 		switch(flash->chip->model_id) {
 		case ST_N25Q064__1E:
@@ -2386,7 +2332,52 @@ static int generic_range_table(const struct flashctx *flash,
 				*num_entries = ARRAY_SIZE(mx25l25635f_tb1_ranges);
 			}
 			break;
-		 }
+		}
+		case MACRONIX_MX25L1005:
+			*descrs = mx25l1005_ranges;
+			*num_entries = ARRAY_SIZE(mx25l1005_ranges);
+			break;
+		case MACRONIX_MX25L2005:
+			*descrs = mx25l2005_ranges;
+			*num_entries = ARRAY_SIZE(mx25l2005_ranges);
+			break;
+		case MACRONIX_MX25L4005:
+			*descrs = mx25l4005_ranges;
+			*num_entries = ARRAY_SIZE(mx25l4005_ranges);
+			break;
+		case MACRONIX_MX25L8005:
+			*descrs = mx25l8005_ranges;
+			*num_entries = ARRAY_SIZE(mx25l8005_ranges);
+			break;
+		case MACRONIX_MX25L1605:
+			/* FIXME: MX25L1605 and MX25L1605D have different write
+			 * protection capabilities, but share IDs */
+			*descrs = mx25l1605d_ranges;
+			*num_entries = ARRAY_SIZE(mx25l1605d_ranges);
+			break;
+		case MACRONIX_MX25L3205:
+			*descrs = mx25l3205d_ranges;
+			*num_entries = ARRAY_SIZE(mx25l3205d_ranges);
+			break;
+		case MACRONIX_MX25U3235E:
+			*descrs = mx25u3235e_ranges;
+			*num_entries = ARRAY_SIZE(mx25u3235e_ranges);
+			break;
+		case MACRONIX_MX25U6435E:
+			*descrs = mx25u6435e_ranges;
+			*num_entries = ARRAY_SIZE(mx25u6435e_ranges);
+			break;
+		case MACRONIX_MX25U12835E: {
+			uint8_t cr = mx25l_read_config_register(flash);
+			if (cr & MX25U12835E_TB) {	/* T/B == 1 */
+				*descrs = mx25u12835e_tb1_ranges;
+				*num_entries = ARRAY_SIZE(mx25u12835e_tb1_ranges);
+			} else {			/* T/B == 0 */
+				*descrs = mx25u12835e_tb0_ranges;
+				*num_entries = ARRAY_SIZE(mx25u12835e_tb0_ranges);
+			}
+		}
+			break;
 		default:
 			msg_cerr("%s():%d: MXIC flash chip mismatch (0x%04x)"
 			         ", aborting\n", __func__, __LINE__,
