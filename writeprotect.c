@@ -1228,6 +1228,8 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 		case ST_N25Q064__1E:
 		case ST_N25Q064__3E:
 			return &wp_w25;
+		case XMC_XM25QH256C:
+			return &wp_w25q_large;
 		}
 		break;
 	case GIGADEVICE_ID:
@@ -2347,6 +2349,17 @@ static int range_table(const struct flashctx *flash,
 		case ST_N25Q064__3E:
 			*descrs = n25q064_ranges;
 			*num_entries = ARRAY_SIZE(n25q064_ranges);
+			break;
+		case XMC_XM25QH256C:
+			if (w25q_read_status_register_2(flash) & (1 << 6)) {
+				/* CMP == 1 */
+				*descrs = w25rq256_cmp1_ranges;
+				*num_entries = ARRAY_SIZE(w25rq256_cmp1_ranges);
+			} else {
+				/* CMP == 0 */
+				*descrs = w25rq256_cmp0_ranges;
+				*num_entries = ARRAY_SIZE(w25rq256_cmp0_ranges);
+			}
 			break;
 		default:
 			msg_cerr("%s() %d: Micron flash chip mismatch"
