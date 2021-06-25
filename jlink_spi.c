@@ -34,7 +34,7 @@
  * Maximum number of bytes that can be transferred at once via the JTAG
  * interface, see jaylink_jtag_io().
  */
-#define JTAG_MAX_TRANSFER_SIZE	(UINT16_MAX / 8)
+#define JTAG_MAX_TRANSFER_SIZE	(32768 / 8)
 
 /*
  * Default base frequency in Hz. Used when the base frequency can not be
@@ -51,23 +51,25 @@
 /* Minimum target voltage required for operation in mV. */
 #define MIN_TARGET_VOLTAGE	1200
 
-static struct jaylink_context *jaylink_ctx;
-static struct jaylink_device_handle *jaylink_devh;
-static bool reset_cs;
+struct jlink_spi_data {
+	struct jaylink_context *ctx;
+	struct jaylink_device_handle *devh;
+	bool reset_cs;
+};
 
-static bool assert_cs(void)
+static bool assert_cs(struct jlink_spi_data *jlink_data)
 {
 	int ret;
 
-	if (reset_cs) {
-		ret = jaylink_clear_reset(jaylink_devh);
+	if (jlink_data->reset_cs) {
+		ret = jaylink_clear_reset(jlink_data->devh);
 
 		if (ret != JAYLINK_OK) {
 			msg_perr("jaylink_clear_reset() failed: %s.\n", jaylink_strerror(ret));
 			return false;
 		}
 	} else {
-		ret = jaylink_jtag_clear_trst(jaylink_devh);
+		ret = jaylink_jtag_clear_trst(jlink_data->devh);
 
 		if (ret != JAYLINK_OK) {
 			msg_perr("jaylink_jtag_clear_trst() failed: %s.\n", jaylink_strerror(ret));
@@ -78,19 +80,19 @@ static bool assert_cs(void)
 	return true;
 }
 
-static bool deassert_cs(void)
+static bool deassert_cs(struct jlink_spi_data *jlink_data)
 {
 	int ret;
 
-	if (reset_cs) {
-		ret = jaylink_set_reset(jaylink_devh);
+	if (jlink_data->reset_cs) {
+		ret = jaylink_set_reset(jlink_data->devh);
 
 		if (ret != JAYLINK_OK) {
 			msg_perr("jaylink_set_reset() failed: %s.\n", jaylink_strerror(ret));
 			return false;
 		}
 	} else {
-		ret = jaylink_jtag_set_trst(jaylink_devh);
+		ret = jaylink_jtag_set_trst(jlink_data->devh);
 
 		if (ret != JAYLINK_OK) {
 			msg_perr("jaylink_jtag_set_trst() failed: %s.\n", jaylink_strerror(ret));
@@ -106,6 +108,7 @@ static int jlink_spi_send_command(const struct flashctx *flash, unsigned int wri
 {
 	uint32_t length;
 	uint8_t *buffer;
+	struct jlink_spi_data *jlink_data = flash->mst->spi.data;
 
 	length = writecnt + readcnt;
 
@@ -124,22 +127,23 @@ static int jlink_spi_send_command(const struct flashctx *flash, unsigned int wri
 
 	memset(buffer + writecnt, 0x00, readcnt);
 
-	if (!assert_cs()) {
+	if (!assert_cs(jlink_data)) {
 		free(buffer);
 		return SPI_PROGRAMMER_ERROR;
 	}
 
 	int ret;
 
-	ret = jaylink_jtag_io(jaylink_devh, buffer, buffer, buffer, length * 8, JAYLINK_JTAG_VERSION_2);
+	ret = jaylink_jtag_io(jlink_data->devh,
+				buffer, buffer, buffer, length * 8, JAYLINK_JTAG_VERSION_2);
 
 	if (ret != JAYLINK_OK) {
-		msg_perr("jaylink_jag_io() failed: %s.\n", jaylink_strerror(ret));
+		msg_perr("jaylink_jtag_io() failed: %s.\n", jaylink_strerror(ret));
 		free(buffer);
 		return SPI_PROGRAMMER_ERROR;
 	}
 
-	if (!deassert_cs()) {
+	if (!deassert_cs(jlink_data)) {
 		free(buffer);
 		return SPI_PROGRAMMER_ERROR;
 	}
@@ -166,11 +170,14 @@ static const struct spi_master spi_master_jlink_spi = {
 
 static int jlink_spi_shutdown(void *data)
 {
-	if (jaylink_devh)
-		jaylink_close(jaylink_devh);
+	struct jlink_spi_data *jlink_data = data;
+	if (jlink_data->devh)
+		jaylink_close(jlink_data->devh);
 
-	jaylink_exit(jaylink_ctx);
+	jaylink_exit(jlink_data->ctx);
 
+	/* jlink_data->ctx, jlink_data->devh are freed by jaylink_close and jaylink_exit */
+	free(jlink_data);
 	return 0;
 }
 
@@ -178,8 +185,10 @@ int jlink_spi_init(void)
 {
 	char *arg;
 	unsigned long speed = 0;
-
-	register_shutdown(jlink_spi_shutdown, NULL);
+	struct jaylink_context *jaylink_ctx = NULL;
+	struct jaylink_device_handle *jaylink_devh = NULL;
+	bool reset_cs;
+	struct jlink_spi_data *jlink_data = NULL;
 
 	arg = extract_programmer_param("spispeed");
 
@@ -212,7 +221,7 @@ int jlink_spi_init(void)
 
 	if (arg) {
 		if (!strlen(arg)) {
-			msg_perr("Emptpy serial number specified.\n");
+			msg_perr("Empty serial number specified.\n");
 			free(arg);
 			return 1;
 		}
@@ -268,8 +277,8 @@ int jlink_spi_init(void)
 	ret = jaylink_discovery_scan(jaylink_ctx, 0);
 
 	if (ret != JAYLINK_OK) {
-		msg_perr("jaylink_discover_scan() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		msg_perr("jaylink_discovery_scan() failed: %s.\n", jaylink_strerror(ret));
+		goto init_err;
 	}
 
 	struct jaylink_device **devs;
@@ -278,7 +287,7 @@ int jlink_spi_init(void)
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_get_devices() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	if (!use_serial_number)
@@ -321,7 +330,7 @@ int jlink_spi_init(void)
 
 	if (!device_found) {
 		msg_perr("No J-Link device found.\n");
-		return 1;
+		goto init_err;
 	}
 
 	size_t length;
@@ -332,7 +341,7 @@ int jlink_spi_init(void)
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_get_firmware_version() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	} else if (length > 0) {
 		msg_pdbg("Firmware: %s\n", firmware_version);
 		free(firmware_version);
@@ -346,25 +355,24 @@ int jlink_spi_init(void)
 		msg_pdbg("S/N: N/A\n");
 	} else {
 		msg_perr("jaylink_device_get_serial_number() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
-	uint8_t caps[JAYLINK_DEV_EXT_CAPS_SIZE];
+	uint8_t caps[JAYLINK_DEV_EXT_CAPS_SIZE] = { 0 };
 
-	memset(caps, 0, sizeof(caps));
 	ret = jaylink_get_caps(jaylink_devh, caps);
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_get_caps() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	if (jaylink_has_cap(caps, JAYLINK_DEV_CAP_GET_EXT_CAPS)) {
 		ret = jaylink_get_extended_caps(jaylink_devh, caps);
 
 		if (ret != JAYLINK_OK) {
-			msg_perr("jaylink_get_available_interfaces() failed: %s.\n", jaylink_strerror(ret));
-			return 1;
+			msg_perr("jaylink_get_extended_caps() failed: %s.\n", jaylink_strerror(ret));
+			goto init_err;
 		}
 	}
 
@@ -374,19 +382,19 @@ int jlink_spi_init(void)
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_get_available_interfaces() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	if (!(ifaces & (1 << JAYLINK_TIF_JTAG))) {
 		msg_perr("Device does not support JTAG interface.\n");
-		return 1;
+		goto init_err;
 	}
 
 	ret = jaylink_select_interface(jaylink_devh, JAYLINK_TIF_JTAG, NULL);
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_select_interface() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	struct jaylink_hardware_status hwstat;
@@ -395,7 +403,7 @@ int jlink_spi_init(void)
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_get_hardware_status() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	msg_pdbg("VTarget: %u.%03u V\n", hwstat.target_voltage / 1000,
@@ -404,7 +412,7 @@ int jlink_spi_init(void)
 	if (hwstat.target_voltage < MIN_TARGET_VOLTAGE) {
 		msg_perr("Target voltage is below %u.%03u V. You need to attach VTref to the I/O voltage of "
 			"the chip.\n", MIN_TARGET_VOLTAGE / 1000, MIN_TARGET_VOLTAGE % 1000);
-		return 1;
+		goto init_err;
 	}
 
 	struct jaylink_speed device_speeds;
@@ -417,7 +425,7 @@ int jlink_spi_init(void)
 
 		if (ret != JAYLINK_OK) {
 			msg_perr("jaylink_get_speeds() failed: %s.\n", jaylink_strerror(ret));
-			return 1;
+			goto init_err;
 		}
 	}
 
@@ -433,23 +441,48 @@ int jlink_spi_init(void)
 	if (speed > (device_speeds.freq / device_speeds.div)) {
 		msg_perr("Specified SPI speed of %lu kHz is too high. Maximum is %" PRIu32 " kHz.\n", speed,
 			device_speeds.freq / device_speeds.div);
-		return 1;
+		goto init_err;
 	}
 
 	ret = jaylink_set_speed(jaylink_devh, speed);
 
 	if (ret != JAYLINK_OK) {
 		msg_perr("jaylink_set_speed() failed: %s.\n", jaylink_strerror(ret));
-		return 1;
+		goto init_err;
 	}
 
 	msg_pdbg("SPI speed: %lu kHz\n", speed);
 
-	/* Ensure that the CS signal is not active initially. */
-	if (!deassert_cs())
-		return 1;
+	jlink_data = calloc(1, sizeof(*jlink_data));
+	if (!jlink_data) {
+		msg_perr("Unable to allocate space for SPI master data\n");
+		goto init_err;
+	}
 
-	register_spi_master(&spi_master_jlink_spi);
+	/* jaylink_ctx, jaylink_devh are allocated by jaylink_init and jaylink_open */
+	jlink_data->ctx = jaylink_ctx;
+	jlink_data->devh = jaylink_devh;
+	jlink_data->reset_cs = reset_cs;
+
+	/* Ensure that the CS signal is not active initially. */
+	if (!deassert_cs(jlink_data))
+		goto init_err;
+
+	if (register_shutdown(jlink_spi_shutdown, jlink_data))
+		goto init_err;
+	register_spi_master(&spi_master_jlink_spi, jlink_data);
 
 	return 0;
+
+init_err:
+	if (jaylink_devh)
+		jaylink_close(jaylink_devh);
+
+	jaylink_exit(jaylink_ctx);
+
+	/* jaylink_ctx, jaylink_devh are freed by jaylink_close and jaylink_exit */
+	if (jlink_data)
+		free(jlink_data);
+
+	return 1;
 }

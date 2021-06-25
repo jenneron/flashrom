@@ -20,9 +20,9 @@
 #define __POWER_H__ 1
 
 /* Disable power management. */
-extern int disable_power_management();
+extern int disable_power_management(void);
 
 /* Re-enable power management. */
-extern int restore_power_management();
+extern int restore_power_management(void);
 
 #endif	/* __POWER_H__ */

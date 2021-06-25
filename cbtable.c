@@ -20,7 +20,6 @@
 
 #include <unistd.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <ctype.h>
 #include <strings.h>
 #include <string.h>
@@ -215,7 +214,7 @@ static struct lb_header *find_lb_table_remap(unsigned long start_addr,
 					     uint8_t **table_area)
 {
 	size_t offset;
-	unsigned long addr, end;
+	unsigned long end;
 	size_t mapping_size;
 	void *base;
 
@@ -229,40 +228,36 @@ static struct lb_header *find_lb_table_remap(unsigned long start_addr,
 		return NULL;
 	}
 
-	for (addr = offset, end = getpagesize(); addr < end; addr += 16) {
+	for (end = getpagesize(); offset < end; offset += 16) {
 		struct lb_record *recs;
 		struct lb_header *head;
 
 		/* No more headers to check. */
-		if (end - addr < sizeof(*head))
+		if (end - offset < sizeof(*head))
 			return NULL;
 
-		head = (struct lb_header *)(((char *)base) + addr);
+		head = (struct lb_header *)(((char *)base) + offset);
 
-		if (!lb_header_valid(head, addr))
+		if (!lb_header_valid(head, offset))
 			continue;
 
-		if (mapping_size - addr < head->table_bytes + sizeof(*head)) {
+		if (mapping_size - offset < head->table_bytes + sizeof(*head)) {
 			size_t prev_mapping_size = mapping_size;
 			mapping_size = head->table_bytes + sizeof(*head);
-			mapping_size += addr;
-			mapping_size += getpagesize() -
-				(mapping_size % getpagesize());
+			mapping_size += offset;
+			mapping_size += getpagesize() - (mapping_size % getpagesize());
 			physunmap(base, prev_mapping_size);
-			base = physmap_ro("high tables", start_addr,
-						mapping_size);
-			if (ERROR_PTR == base) {
+			base = physmap_ro("high tables", start_addr, mapping_size);
+			if (ERROR_PTR == base)
 				msg_perr("Failed getting access to coreboot high tables.\n");
-				return NULL;
-			}
+			else
+				head = (struct lb_header *)(((char *)base) + offset);
 		}
 
-		head = (struct lb_header *)(((char *)base) + addr);
-		recs =
-		    (struct lb_record *)(((char *)base) + addr + sizeof(*head));
+		recs = (struct lb_record *)(((char *)base) + offset + sizeof(*head));
 		if (!lb_table_valid(head, recs))
 			continue;
-		msg_pdbg("Found coreboot table at 0x%08lx.\n", addr);
+		msg_pdbg("Found coreboot table at 0x%08zx.\n", offset);
 		*table_area = base;
 		return head;
 	}

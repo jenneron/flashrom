@@ -568,7 +568,7 @@ int cros_ec_probe_dev(void)
 	internal_buses_supported &= ~(BUS_LPC|BUS_SPI);
 
 	msg_pdbg("CROS_EC detected at %s\n", dev_path);
-	register_opaque_master(&opaque_master_cros_ec_dev);
+	register_opaque_master(&opaque_master_cros_ec_dev, NULL);
 	register_shutdown(cros_ec_dev_shutdown, NULL);
 	cros_ec_dev_priv.detected = 1;
 	cros_ec_priv = &cros_ec_dev_priv;

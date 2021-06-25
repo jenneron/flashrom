@@ -88,7 +88,7 @@ const struct dev_entry nics_intel_ee[] = {
 	{PCI_VENDOR_ID_INTEL, 0x1511, NT , "Intel", "82580 Quad Gigabit Ethernet Controller (Ext. PHY)"},
 	{PCI_VENDOR_ID_INTEL, 0x1511, NT , "Intel", "82580 Dual Gigabit Ethernet Controller (Copper)"},
 	{PCI_VENDOR_ID_INTEL, UNPROG_DEVICE, OK, "Intel", "Unprogrammed 82580 Quad/Dual Gigabit Ethernet Controller"},
-	{PCI_VENDOR_ID_INTEL, 0x1531, NT, "Intel", "I210 Gigabit Network Connection Unprogrammed"},
+	{PCI_VENDOR_ID_INTEL, 0x1531, OK, "Intel", "I210 Gigabit Network Connection Unprogrammed"},
 	{PCI_VENDOR_ID_INTEL, 0x1532, NT, "Intel", "I211 Gigabit Network Connection Unprogrammed"},
 	{PCI_VENDOR_ID_INTEL, 0x1533, OK, "Intel", "I210 Gigabit Network Connection"},
 	{PCI_VENDOR_ID_INTEL, 0x1536, NT, "Intel", "I210 Gigabit Network Connection SERDES Fiber"},
@@ -486,7 +486,7 @@ int nicintel_ee_init(void)
 				return 1;
 		}
 
-		return register_opaque_master(&opaque_master_nicintel_ee_82580);
+		return register_opaque_master(&opaque_master_nicintel_ee_82580, NULL);
 	} else {
 		nicintel_eebar = rphysmap("Intel i210 NIC w/ emulated EEPROM",
 					  io_base_addr + 0x12000, MEMMAP_SIZE);
@@ -496,7 +496,7 @@ int nicintel_ee_init(void)
 		if (register_shutdown(nicintel_ee_shutdown_i210, NULL))
 			return 1;
 
-		return register_opaque_master(&opaque_master_nicintel_ee_i210);
+		return register_opaque_master(&opaque_master_nicintel_ee_i210, NULL);
 	}
 
 	return 1;

@@ -46,30 +46,9 @@ int erase_opaque(struct flashctx *flash, unsigned int blockaddr, unsigned int bl
 	return flash->mst->opaque.erase(flash, blockaddr, blocklen);
 }
 
-uint8_t read_status_opaque(const struct flashctx *flash)
+int register_opaque_master(const struct opaque_master *mst, void *data)
 {
-	if (flash->mst->opaque.read_status)
-		return flash->mst->opaque.read_status(flash);
-	return 1;
-}
-
-int write_status_opaque(const struct flashctx *flash, int status)
-{
-	if (flash->mst->opaque.write_status)
-		return flash->mst->opaque.write_status(flash, status);
-	return 1;
-}
-
-int check_access_opaque(const struct flashctx *flash, unsigned int start, unsigned int len, int rw)
-{
-	if (flash->mst->opaque.check_access)
-		return flash->mst->opaque.check_access(flash, start, len, rw);
-	return 1;
-}
-
-int register_opaque_master(const struct opaque_master *mst)
-{
-	struct registered_master rmst;
+	struct registered_master rmst = {0};
 
 	if (!mst->probe || !mst->read || !mst->write || !mst->erase) {
 		msg_perr("%s called with incomplete master definition. "
@@ -79,5 +58,7 @@ int register_opaque_master(const struct opaque_master *mst)
 	}
 	rmst.buses_supported = BUS_PROG;
 	rmst.opaque = *mst;
+	if (data)
+		rmst.opaque.data = data;
 	return register_master(&rmst);
 }

@@ -158,7 +158,6 @@
 #define ATMEL_AT26DF081A	0x4501
 #define ATMEL_AT26DF161		0x4600
 #define ATMEL_AT26DF161A	0x4601
-#define ATMEL_AT26DF321		0x4700	/* Same as 25DF321 */
 #define ATMEL_AT26F004		0x0400
 #define ATMEL_AT29LV512		0x3D
 #define ATMEL_AT29LV010A	0x35	/* Same as AT29BV010A, the latter works down to 2.7V */
@@ -198,9 +197,7 @@
 #define ATMEL_AT49BV512		0x03	/* Same as AT49F512 */
 #define ATMEL_AT49F001N		0x05	/* Same as AT49F001 */
 #define ATMEL_AT49F001NT	0x04	/* Same as AT49F001T */
-#define ATMEL_AT49F020		0x0B
 #define ATMEL_AT49F002N		0x07	/* for AT49F002(N)  */
-#define ATMEL_AT49F002NT		0x08	/* for AT49F002(N)T */
 #define ATMEL_AT49LH002		0xE9
 #define ATMEL_AT49LH00B4	0xED
 #define ATMEL_AT49LH004		0xEE
@@ -211,9 +208,10 @@
 #define ATMEL_AT49F080		0x23
 #define ATMEL_AT49F080T		0x27
 
-/* Boya Microelectronics Inc.*/
-#define BOYA_ID			0x68
-#define BOYA_BY25Q128AS		0x4018
+/* Boya/BoHong Microelectronics Inc. */
+#define BOYA_BOHONG_ID		0x68
+#define BOYA_BOHONG_B_25D16A	0x4015
+#define BOYA_BOHONG_B_25Q128AS	0x4018
 
 /* Bright Microelectronics has the same manufacturer ID as Hyundai... */
 #define BRIGHT_ID		0xAD	/* Bright Microelectronics */
@@ -278,12 +276,6 @@
 #define EON_EN25P64		0x16
 #define EON_EN25B64T		0x46
 #define EON_EN25B64B		0x36
-#define EON_EN25Q40		0x3013
-#define EON_EN25Q80		0x3014
-#define EON_EN25D16		0x3015	/* Same as Q16 */
-#define EON_EN25Q32		0x3016
-#define EON_EN25Q64		0x3017
-#define EON_EN25Q128		0x3018
 #define EON_EN25F05		0x3110
 #define EON_EN25F10		0x3111
 #define EON_EN25F20		0x3112
@@ -316,7 +308,6 @@
 #define EON_EN29F010		0x20
 #define EON_EN29F040A		0x7F04
 #define EON_EN29LV010		0x7F6E
-#define EON_EN29LV040A		0x7F4F	/* EN29LV040(A) */
 #define EON_EN29LV040		0x4F	/* Same as EN29LV040A */
 #define EON_EN29LV640B		0xCB
 #define EON_EN29LV640T		0xC9
@@ -513,14 +504,13 @@
 #define MACRONIX_MX25L4005	0x2013	/* Same as MX25L4005A, MX25L4005C, MX25L4006E */
 #define MACRONIX_MX25L8005	0x2014	/* Same as MX25V8005, MX25L8006E, MX25L8008E, FIXME: MX25L8073E (4k 0x20) */
 #define MACRONIX_MX25L1605	0x2015	/* MX25L1605 (64k 0x20); MX25L1605A/MX25L1606E/MX25L1608E (4k 0x20, 64k 0x52); MX25L1605D/MX25L1608D/MX25L1673E (4k 0x20) */
-#define MACRONIX_MX25L3205	0x2016	/* MX25L3205, MX25L3205A (64k 0x20); MX25L3205D/MX25L3208D (4k 0x20); MX25L3206E/MX25L3208E (4k 0x20, 64k 0x52); MX25L3273E (4k 0x20, 32k 0x52) */
+#define MACRONIX_MX25L3205	0x2016	/* MX25L3205, MX25L3205A (64k 0x20); MX25L3205D/MX25L3208D (4k 0x20); MX25L3206E/MX25L3208E (4k 0x20, 64k 0x52); MX25L3233F/MX25L3273E (4k 0x20, 32k 0x52) */
 #define MACRONIX_MX25L6405	0x2017	/* MX25L6405, MX25L6405D (64k 0x20); MX25L6406E/MX25L6408E (4k 0x20); MX25L6436E/MX25L6445E/MX25L6465E/MX25L6473E (4k 0x20, 32k 0x52) */
-#define MACRONIX_MX25L12805	0x2018	/* MX25L12805 */
 #define MACRONIX_MX25L12805D	0x2018	/* MX25L12805D (no 32k); MX25L12865E, MX25L12835F, MX25L12845E (32k 0x52) */
 #define MACRONIX_MX25L25635F	0x2019	/* Same as MX25L25639F, but the latter seems to not support REMS */
 #define MACRONIX_MX25L1635D	0x2415
 #define MACRONIX_MX25L1635E	0x2515	/* MX25L1635{E} */
-#define MACRONIX_MX66L51235F	0x201a	/* MX66L51235F */
+#define MACRONIX_MX66L51235F	0x201a	/* MX66L51235F, MX25L51245G */
 #define MACRONIX_MX25U8032E	0x2534
 #define MACRONIX_MX25U1635E	0x2535
 #define MACRONIX_MX25U3235E	0x2536	/* Same as MX25U6435F */
@@ -804,7 +794,7 @@
  * ST25P chips are SPI, first byte of device ID is memory type, second
  * byte of device ID is related to log(bitsize) at least for some chips.
  */
-#define ST_ID			0x20	/* ST / SGS/Thomson / Numonyx (later acquired by Micron) */
+#define ST_ID			0x20	/* ST / SGS/Thomson / Numonyx / XMC(later acquired by Micron) */
 #define ST_M25P05A		0x2010
 #define ST_M25P05_RES		0x05
 #define ST_M25P10A		0x2011
@@ -823,6 +813,12 @@
 #define ST_M45PE40		0x4013
 #define ST_M45PE80		0x4014
 #define ST_M45PE16		0x4015
+#define XMC_XM25QH64C		0x4017
+#define XMC_XM25QU64C		0x4117
+#define XMC_XM25QH128C		0x4018
+#define XMC_XM25QU128C		0x4118
+#define XMC_XM25QH256C		0x4019
+#define XMC_XM25QU256C		0x4119
 #define ST_M25PX80		0x7114
 #define ST_M25PX16		0x7115
 #define ST_M25PX32		0x7116
@@ -905,7 +901,6 @@
 #define ST_N25Q032__1E		0xBB16	/* N25Q032, 1.8V, (uniform sectors expected) */
 #define ST_N25Q064__3E		0xBA17	/* N25Q064, 3.0V, (uniform sectors expected) */
 #define ST_N25Q064__1E		0xBB17	/* N25Q064, 1.8V, (uniform sectors expected) */
-#define ST_N25Q512__3E		0xBA20	/* N25Q512, 3.0V, (uniform sectors expected) */
 #define ST_N25Q128__3E		0xBA18	/* N25Q128/MT25QL128, 3.0V, (uniform sectors expected) */
 #define ST_N25Q128__1E		0xBB18	/* N25Q128/MT25QU128, 1.8V, (uniform sectors expected) */
 #define ST_N25Q256__3E		0xBA19	/* N25Q256/MT25QL256, 3.0V, (uniform sectors expected) */
@@ -967,12 +962,7 @@
 #define WINBOND_NEX_W25Q16_V	0x4015	/* W25Q16CV; W25Q16DV */
 #define WINBOND_NEX_W25Q32_V	0x4016	/* W25Q32BV; W25Q32FV in SPI mode (default) */
 #define WINBOND_NEX_W25Q64_V	0x4017	/* W25Q64BV, W25Q64CV; W25Q64FV in SPI mode (default) */
-
-/*
- * W25Q128 has several variants. Currently all are 3.3V except for the W25Q128FW
- * which is 1.8V. Otherwise they should behave the same...
- */
-#define WINBOND_NEX_W25Q128_V	0x4018	/* W25Q128BV, W25Q128FV (SPI mode), W25Q128JV */
+#define WINBOND_NEX_W25Q128_V	0x4018	/* W25Q128BV; W25Q128FV in SPI mode (default) */
 #define WINBOND_NEX_W25Q256_V	0x4019	/* W25Q256FV or W25Q256JV_Q (QE=1) */
 #define WINBOND_NEX_W25Q512JV	0x4020	/* W25Q512JV */
 #define WINBOND_NEX_W25Q20_W	0x5012	/* W25Q20BW */
@@ -983,13 +973,12 @@
 #define WINBOND_NEX_W25Q16_W	0x6015	/* W25Q16DW */
 #define WINBOND_NEX_W25Q32_W	0x6016	/* W25Q32DW; W25Q32FV in QPI mode */
 #define WINBOND_NEX_W25Q64_W	0x6017	/* W25Q64DW; W25Q64FV in QPI mode */
-#define WINBOND_NEX_W25Q128_W	0x6018	/* Same as W25Q128FV (QPI mode), W25R128FV */
-#define WINBOND_NEX_W25Q128FW	0x6018	/* Same as W25Q128FV (QPI mode), W25R128FV */
+#define WINBOND_NEX_W25Q128_W	0x6018	/* W25Q128FW; W25Q128FV in QPI mode */
 #define WINBOND_NEX_W25Q256_W	0x6019	/* W25Q256JW */
 #define WINBOND_NEX_W25Q128_V_M	0x7018	/* W25Q128JVSM */
 #define WINBOND_NEX_W25Q256JV_M	0x7019	/* W25Q256JV_M (QE=0) */
-#define WINBOND_NEX_W25Q32JW	0x8016
-#define WINBOND_NEX_W25Q64JW	0x8017
+#define WINBOND_NEX_W25Q32JW_M	0x8016  /* W25Q32JW...M */
+#define WINBOND_NEX_W25Q64JW_M	0x8017  /* W25Q64JW...M */
 #define WINBOND_NEX_W25Q128_DTR	0x8018	/* W25Q128JW_DTR */
 #define WINBOND_NEX_W25Q256_DTR	0x8019	/* W25Q256JW_DTR aka W25Q256256JW-IM */
 
