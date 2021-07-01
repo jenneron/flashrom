@@ -166,7 +166,7 @@ static void ec_command(const ene_chip_t *chip, uint8_t cmd, uint8_t data)
 	gettimeofday(&begin, NULL);
 	while (INB(chip->port_ec_command) & MASK_INPUT_BUFFER_FULL) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+		if ((now.tv_sec - begin.tv_sec) >= EC_COMMAND_TIMEOUT) {
 			msg_pdbg("%s: buf not empty\n", __func__);
 			return;
 		}
@@ -178,9 +178,11 @@ static void ec_command(const ene_chip_t *chip, uint8_t cmd, uint8_t data)
 	if (chip->chip_id == ENE_KB932) {
 		/* Spin wait for EC input buffer empty */
 		gettimeofday(&begin, NULL);
-		while (INB(chip->port_ec_command) & MASK_INPUT_BUFFER_FULL) {
+		while (INB(chip->port_ec_command) &
+		       MASK_INPUT_BUFFER_FULL) {
 			gettimeofday(&now, NULL);
-			if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+			if ((now.tv_sec - begin.tv_sec) >=
+			     EC_COMMAND_TIMEOUT) {
 				msg_pdbg("%s: buf not empty\n", __func__);
 				return;
 			}
@@ -293,9 +295,9 @@ static int ene_spi_wait(const ene_chip_t *chip)
 	struct timeval begin, now;
 
 	gettimeofday(&begin, NULL);
-	while (ene_read(chip, REG_SPI_CONFIG) & CFG_STATUS) {
+	while(ene_read(chip, REG_SPI_CONFIG) & CFG_STATUS) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+		if ((now.tv_sec - begin.tv_sec) >= EC_COMMAND_TIMEOUT) {
 			msg_pdbg("%s: spi busy\n", __func__);
 			return 1;
 		}
@@ -316,13 +318,16 @@ static int ene_pause_ec(ene_lpc_data_t *ctx_data)
 
 	gettimeofday(&begin, NULL);
 	/* Spin wait for EC ready */
-	while (ene_read(chip, chip->ec_status_buf) != chip->ec_is_pausing) {
+	while (ene_read(chip, chip->ec_status_buf) !=
+	       chip->ec_is_pausing) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+		if ((now.tv_sec - begin.tv_sec) >=
+		     EC_COMMAND_TIMEOUT) {
 			msg_pdbg("%s: unable to pause ec\n", __func__);
 			return -1;
 		}
 	}
+
 
 	gettimeofday(&ctx_data->pause_begin, NULL);
 	ctx_data->ec_state = EC_STATE_IDLE;
@@ -341,9 +346,11 @@ static int ene_resume_ec(ene_lpc_data_t *ctx_data)
 		ene_write(chip, REG_EC_EXTCMD, 0xff);
 
 	gettimeofday(&begin, NULL);
-	while (ene_read(chip, chip->ec_status_buf) != chip->ec_is_running) {
+	while (ene_read(chip, chip->ec_status_buf) !=
+	       chip->ec_is_running) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+		if ((now.tv_sec - begin.tv_sec) >=
+		     EC_COMMAND_TIMEOUT) {
 			msg_pdbg("%s: unable to resume ec\n", __func__);
 			return -1;
 		}
@@ -357,9 +364,11 @@ static int ene_pause_timeout_check(ene_lpc_data_t *ctx_data)
 {
 	struct timeval pause_now;
 	gettimeofday(&pause_now, NULL);
-	if (pause_now.tv_sec - ctx_data->pause_begin.tv_sec >= EC_PAUSE_TIMEOUT) {
-		if (ene_resume_ec(ctx_data) == 0)
+	if ((pause_now.tv_sec - ctx_data->pause_begin.tv_sec) >=
+			     EC_PAUSE_TIMEOUT) {
+		if(ene_resume_ec(ctx_data) == 0)
 			ene_pause_ec(ctx_data);
+
 	}
 	return 0;
 }
@@ -376,9 +385,11 @@ static int ene_reset_ec(ene_lpc_data_t *ctx_data)
 	ec_command(chip, chip->ec_reset_cmd, chip->ec_reset_data);
 
 	/* Spin wait for EC ready */
-	while (ene_read(chip, chip->ec_status_buf) != chip->ec_is_stopping) {
+	while (ene_read(chip, chip->ec_status_buf) !=
+	       chip->ec_is_stopping) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - begin.tv_sec >= EC_COMMAND_TIMEOUT) {
+		if ((now.tv_sec - begin.tv_sec) >=
+		     EC_COMMAND_TIMEOUT) {
 			msg_pdbg("%s: unable to reset ec\n", __func__);
 			return -1;
 		}
@@ -429,9 +440,9 @@ static int ene_spi_send_command(const struct flashctx *flash,
 			ctx_data->ec_state = EC_STATE_IDLE;
 			return 1;
 		}
-	} else if (chip->chip_id == ENE_KB94X && ctx_data->ec_state == EC_STATE_IDLE) {
-		ene_pause_timeout_check(ctx_data);
 	}
+	else if(chip->chip_id == ENE_KB94X && ctx_data->ec_state == EC_STATE_IDLE)
+		ene_pause_timeout_check(ctx_data);
 
 	ene_spi_start(chip);
 
@@ -476,16 +487,19 @@ static int ene_leave_flash_mode(void *data)
 
 		gettimeofday(&begin, NULL);
 		/* EC restart */
-		while (ene_read(chip, chip->ec_status_buf) != chip->ec_is_running) {
+		while (ene_read(chip, chip->ec_status_buf) !=
+		       chip->ec_is_running) {
 			gettimeofday(&now, NULL);
-			if (now.tv_sec - begin.tv_sec >= EC_RESTART_TIMEOUT) {
+			if ((now.tv_sec - begin.tv_sec) >=
+			     EC_RESTART_TIMEOUT) {
 				msg_pdbg("%s: ec restart busy\n", __func__);
 				rv = 1;
 				goto exit;
 			}
 		}
 		msg_pdbg("%s: send ec restart\n", __func__);
-		ec_command(chip, chip->ec_restart_cmd, chip->ec_restart_data);
+		ec_command(chip, chip->ec_restart_cmd,
+		           chip->ec_restart_data);
 
 		ctx_data->ec_state = EC_STATE_NORMAL;
 		rv = 0;
@@ -504,7 +518,7 @@ exit:
 	return rv;
 }
 
-static const struct spi_master spi_master_ene = {
+static struct spi_master spi_master_ene = {
 	.max_data_read = 256,
 	.max_data_write = 256,
 	.command = ene_spi_send_command,
@@ -513,22 +527,11 @@ static const struct spi_master spi_master_ene = {
 	.write_256 = default_spi_write_256,
 };
 
-static int check_params(void)
-{
-	int ret = 0;
-	char *const p = extract_programmer_param("type");
-	if (p && strcmp(p, "ec")) {
-		msg_pdbg("ene_lpc only supports \"ec\" type devices\n");
-		ret = 1;
-	}
-
-	free(p);
-	return ret;
-}
-
 int ene_lpc_init()
 {
 	uint8_t hwver, ediid, i;
+	int ret = 0;
+	char *p = NULL;
 	ene_lpc_data_t *ctx_data = NULL;
 
 	msg_pdbg("%s\n", __func__);
@@ -540,8 +543,12 @@ int ene_lpc_init()
 	}
 	ctx_data->ec_state = EC_STATE_NORMAL;
 
-	if (check_params())
-		goto init_err_exit;
+	p = extract_programmer_param("type");
+	if (p && strcmp(p, "ec")) {
+		msg_pdbg("ene_lpc only supports \"ec\" type devices\n");
+		ret = 1;
+		goto ene_probe_spi_flash_exit;
+	}
 
 	for (i = 0; i < ENE_LAST; ++i) {
 		ctx_data->chip = &ene_chips[i];
@@ -557,7 +564,8 @@ int ene_lpc_init()
 
 	if (i == ENE_LAST) {
 		msg_pdbg("ENE EC not found (probe failed)\n");
-		goto init_err_exit;
+		ret = 1;
+		goto ene_probe_spi_flash_exit;
 	}
 
 	/* TODO: probe the EC stop protocol
@@ -565,24 +573,24 @@ int ene_lpc_init()
 	 * Compal - ec_command(0x41, 0xa1) returns 43 4f 4d 50 41 4c 9c
 	 */
 
+
+	if (register_shutdown(ene_leave_flash_mode, ctx_data)) {
+		ret = 1;
+		goto ene_probe_spi_flash_exit;
+	}
+
 	ene_enter_flash_mode(ctx_data);
 
 	internal_buses_supported |= BUS_LPC;
-
-	if (register_shutdown(ene_leave_flash_mode, ctx_data))
-		goto init_err_cleanup_exit;
-	register_spi_master(&spi_master_ene, ctx_data);
+	spi_master_ene.data = ctx_data;
+	register_spi_master(&spi_master_ene);
 	msg_pdbg("%s: successfully initialized ene\n", __func__);
 
-	return 0;
-
-init_err_cleanup_exit:
-	ene_leave_flash_mode(ctx_data);
-	return 1;
-
-init_err_exit:
-	free(ctx_data);
-	return 1;
+ene_probe_spi_flash_exit:
+	free(p);
+	if (ret)
+		free(ctx_data);
+	return ret;
 }
 
 #endif /* __i386__ || __x86_64__ */

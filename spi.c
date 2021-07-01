@@ -131,9 +131,9 @@ int spi_aai_write(struct flashctx *flash, const uint8_t *buf, unsigned int start
 	return flash->mst->spi.write_aai(flash, buf, start, len);
 }
 
-int register_spi_master(const struct spi_master *mst, void *data)
+int register_spi_master(const struct spi_master *mst)
 {
-	struct registered_master rmst = {0};
+	struct registered_master rmst;
 
 	if (!mst->write_aai || !mst->write_256 || !mst->read || !mst->command ||
 	    !mst->multicommand ||
@@ -148,7 +148,5 @@ int register_spi_master(const struct spi_master *mst, void *data)
 
 	rmst.buses_supported = BUS_SPI;
 	rmst.spi = *mst;
-	if (data)
-		rmst.spi.data = data;
 	return register_master(&rmst);
 }

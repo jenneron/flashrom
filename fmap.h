@@ -1,5 +1,5 @@
 /*
- * Copyright 2010, Google LLC.
+ * Copyright 2015, Google Inc.
  * Copyright 2018-present, Facebook Inc.
  * All rights reserved.
  *
@@ -40,6 +40,8 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+struct flashctx;
+
 #define FMAP_SIGNATURE		"__FMAP__"
 #define FMAP_VER_MAJOR		1	/* this header's FMAP minor version */
 #define FMAP_VER_MINOR		1	/* this header's FMAP minor version */
@@ -51,9 +53,9 @@ struct fmap_area {
 	uint8_t  name[FMAP_STRLEN];	/* descriptive name */
 	uint16_t flags;			/* flags for this area */
 }  __attribute__((packed));
-
+/* Mapping of volatile and static regions in firmware binary */
 struct fmap {
-	uint8_t  signature[8];		/* "__FMAP__" */
+	uint64_t signature;		/* "__FMAP__" (0x5F5F50414D465F5F) */
 	uint8_t  ver_major;		/* major version */
 	uint8_t  ver_minor;		/* minor version */
 	uint64_t base;			/* address of the firmware binary */
@@ -67,5 +69,6 @@ struct fmap {
 int fmap_read_from_buffer(struct fmap **fmap_out, const uint8_t *buf, size_t len);
 int fmap_read_from_rom(struct fmap **fmap_out, struct flashctx *const flashctx, size_t rom_offset, size_t len);
 
+int get_fmap_entries(const char *filename, struct flashctx *flash);
 
 #endif	/* __FMAP_H__*/

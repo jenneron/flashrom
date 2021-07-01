@@ -195,23 +195,22 @@ struct programmer_entry {
 	int paranoid;
 };
 
-extern const struct programmer_entry *const programmer_table[];
-extern const size_t programmer_table_size;
+extern const struct programmer_entry programmer_table[];
 
 int programmer_init(enum programmer prog, const char *param);
 int programmer_shutdown(void);
 
 struct bitbang_spi_master {
 	/* Note that CS# is active low, so val=0 means the chip is active. */
-	void (*set_cs) (int val, void *spi_data);
-	void (*set_sck) (int val, void *spi_data);
-	void (*set_mosi) (int val, void *spi_data);
-	int (*get_miso) (void *spi_data);
-	void (*request_bus) (void *spi_data);
-	void (*release_bus) (void *spi_data);
+	void (*set_cs) (int val);
+	void (*set_sck) (int val);
+	void (*set_mosi) (int val);
+	int (*get_miso) (void);
+	void (*request_bus) (void);
+	void (*release_bus) (void);
 	/* optional functions to optimize xfers */
-	void (*set_sck_set_mosi) (int sck, int mosi, void *spi_data);
-	int (*set_sck_get_miso) (int sck, void *spi_data);
+	void (*set_sck_set_mosi) (int sck, int mosi);
+	int (*set_sck_get_miso) (int sck);
 	/* Length of half a clock period in usecs. */
 	unsigned int half_period;
 };
@@ -310,6 +309,7 @@ void myusec_delay(unsigned int usecs);
 void myusec_calibrate_delay(void);
 void internal_sleep(unsigned int usecs);
 void internal_delay(unsigned int usecs);
+void internal_sleep(unsigned int usecs);
 
 #if CONFIG_INTERNAL == 1
 /* board_enable.c */
@@ -368,6 +368,7 @@ extern int superio_count;
 #define SUPERIO_VENDOR_WINBOND	0x2
 #endif
 #if NEED_PCI == 1
+struct pci_filter;
 struct pci_dev *pci_dev_find_vendorclass(uint16_t vendor, uint16_t devclass);
 struct pci_dev *pci_dev_find(uint16_t vendor, uint16_t device);
 struct pci_dev *pci_card_find(uint16_t vendor, uint16_t device,
@@ -563,7 +564,8 @@ int pony_spi_init(void);
 #endif
 
 /* bitbang_spi.c */
-int register_spi_bitbang_master(const struct bitbang_spi_master *master, void *spi_data);
+int register_spi_bitbang_master(const struct bitbang_spi_master *master);
+int bitbang_spi_shutdown(const struct bitbang_spi_master *master);
 
 /* buspirate_spi.c */
 #if CONFIG_BUSPIRATE_SPI == 1
@@ -655,7 +657,7 @@ struct spi_master {
 	int (*read)(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 	int (*write_256)(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
 	int (*write_aai)(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
-	void *data;
+	const void *data;
 };
 
 int default_spi_send_command(const struct flashctx *flash, unsigned int writecnt, unsigned int readcnt,
@@ -664,7 +666,7 @@ int default_spi_send_multicommand(const struct flashctx *flash, struct spi_comma
 int default_spi_read(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 int default_spi_write_256(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
 int default_spi_write_aai(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
-int register_spi_master(const struct spi_master *mst, void *data);
+int register_spi_master(const struct spi_master *mst);
 
 /* The following enum is needed by ich_descriptor_tool and ich* code as well as in chipset_enable.c. */
 enum ich_chipset {
@@ -691,13 +693,20 @@ enum ich_chipset {
 	CHIPSET_100_SERIES_SUNRISE_POINT, /* also 6th/7th gen Core i/o (LP) variants */
 	CHIPSET_C620_SERIES_LEWISBURG,
 	CHIPSET_300_SERIES_CANNON_POINT,
-	CHIPSET_400_SERIES_COMET_POINT,
 	CHIPSET_APOLLO_LAKE,
-	CHIPSET_GEMINI_LAKE,
 };
+
 
 /* ichspi.c */
 #if CONFIG_INTERNAL == 1
+
+/*
+ * This global variable is used to communicate the type of ICH found on the
+ * device. When running on non-intel platforms default value of
+ * CHIPSET_ICH_UNKNOWN is used.
+*/
+extern enum ich_chipset ich_generation;
+
 int ich_init_spi(void *spibar, enum ich_chipset ich_generation);
 int via_init_spi(uint32_t mmio_base);
 
@@ -745,11 +754,15 @@ struct opaque_master {
 	int (*read) (struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 	int (*write) (struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
 	int (*erase) (struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen);
-	void *data;
+	uint8_t (*read_status) (const struct flashctx *flash);
+	int (*write_status) (const struct flashctx *flash, int status);
+	int (*check_access) (const struct flashctx *flash, unsigned int start, unsigned int len, int read);
+	const void *data;
 };
-int register_opaque_master(const struct opaque_master *mst, void *data);
+int register_opaque_master(const struct opaque_master *mst);
 
 /* programmer.c */
+int noop_shutdown(void);
 void *fallback_map(const char *descr, uintptr_t phys_addr, size_t len);
 void fallback_unmap(void *virt_addr, size_t len);
 void fallback_chip_writew(const struct flashctx *flash, uint16_t val, chipaddr addr);
@@ -767,12 +780,12 @@ struct par_master {
 	uint16_t (*chip_readw) (const struct flashctx *flash, const chipaddr addr);
 	uint32_t (*chip_readl) (const struct flashctx *flash, const chipaddr addr);
 	void (*chip_readn) (const struct flashctx *flash, uint8_t *buf, const chipaddr addr, size_t len);
-	void *data;
+	const void *data;
 };
-int register_par_master(const struct par_master *mst, const enum chipbustype buses, void *data);
+int register_par_master(const struct par_master *mst, const enum chipbustype buses);
 struct registered_master {
 	enum chipbustype buses_supported;
-	struct {
+	union {
 		struct par_master par;
 		struct spi_master spi;
 		struct opaque_master opaque;

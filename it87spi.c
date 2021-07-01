@@ -290,7 +290,7 @@ static int it8716f_spi_chip_write_256(struct flashctx *flash, const uint8_t *buf
 	return 0;
 }
 
-static const struct spi_master spi_master_it87xx = {
+static struct spi_master spi_master_it87xx = {
 	.max_data_read	= 3,
 	.max_data_write	= MAX_DATA_UNSPECIFIED,
 	.command	= it8716f_spi_send_command,
@@ -324,13 +324,12 @@ static uint16_t it87spi_probe(uint16_t port)
 			char *dualbiosindex_suffix;
 			errno = 0;
 			long chip_index = strtol(param, &dualbiosindex_suffix, 0);
+			free(param);
 			if (errno != 0 || *dualbiosindex_suffix != '\0' || chip_index < 0 || chip_index > 1) {
 				msg_perr("DualBIOS: Invalid chip index requested - choose 0 or 1.\n");
-				free(param);
 				exit_conf_mode_ite(port);
 				return 1;
 			}
-			free(param);
 			if (chip_index != (tmp & 1)) {
 				msg_pdbg("DualBIOS: Previous chip index: %d\n", tmp & 1);
 				sio_write(port, 0xEF, (tmp & 0xFE) | chip_index);
@@ -411,7 +410,7 @@ static uint16_t it87spi_probe(uint16_t port)
 	free(param);
 	exit_conf_mode_ite(port);
 
-	struct it8716f_spi_data *data = calloc(1, sizeof(*data));
+	struct it8716f_spi_data *data = calloc(1, sizeof(struct it8716f_spi_data));
 	if (!data) {
 		msg_perr("Unable to allocate space for extra SPI master data.\n");
 		return SPI_GENERIC_ERROR;
@@ -419,13 +418,14 @@ static uint16_t it87spi_probe(uint16_t port)
 
 	data->flashport = flashport;
 	data->fast_spi = 1;
+	spi_master_it87xx.data = data;
 
 	register_shutdown(it8716f_shutdown, data);
 
 	if (internal_buses_supported & BUS_SPI)
 		msg_pdbg("Overriding chipset SPI with IT87 SPI.\n");
 	/* FIXME: Add the SPI bus or replace the other buses with it? */
-	register_spi_master(&spi_master_it87xx, data);
+	register_spi_master(&spi_master_it87xx);
 	return 0;
 }
 
