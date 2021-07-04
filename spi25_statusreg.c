@@ -83,15 +83,14 @@ int spi_write_status_register(const struct flashctx *flash, int status)
 			 "EWSR is needed\n");
 		feature_bits |= FEATURE_WRSR_EWSR;
 	}
-	if (flash->chip->write_status) {
-                ret = flash->chip->write_status(flash, status);
-        } else {
-                if (feature_bits & FEATURE_WRSR_WREN)
-                        ret = spi_write_status_register_flag(flash, status, JEDEC_WREN);
-                if (ret && (feature_bits & FEATURE_WRSR_EWSR))
-                        ret = spi_write_status_register_flag(flash, status, JEDEC_EWSR);
-        }
-        return ret;
+	if (flash->chip->write_status)
+                return flash->chip->write_status(flash, status);
+
+	if (feature_bits & FEATURE_WRSR_WREN)
+		ret = spi_write_status_register_flag(flash, status, JEDEC_WREN);
+	if (ret && (feature_bits & FEATURE_WRSR_EWSR))
+		ret = spi_write_status_register_flag(flash, status, JEDEC_EWSR);
+	return ret;
 }
 
 uint8_t spi_read_status_register(const struct flashctx *flash)
@@ -149,7 +148,7 @@ static int spi_disable_blockprotect_generic(struct flashctx *flash, uint8_t bp_m
 		return 0;
 	}
 
-	/* restore status register content upon exit */
+	/* Restore status register content upon exit in finalize_flash_access(). */
 	register_chip_restore(spi_restore_status, flash, status);
 
 	msg_cdbg("Some block protection in effect, disabling... ");

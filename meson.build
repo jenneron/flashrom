@@ -1,7 +1,7 @@
 project('flashromutils', 'c',
   version : run_command('util/getversion.sh', '-v').stdout().strip(),
   license : 'GPL-2.0',
-  meson_version : '>=0.47.0',
+  meson_version : '>=0.50.0',
   default_options : ['warning_level=2', 'c_std=c99'],
 )
 
@@ -38,12 +38,13 @@ config_ch341a_spi = get_option('config_ch341a_spi')
 config_dediprog = get_option('config_dediprog')
 config_developerbox_spi = get_option('config_developerbox_spi')
 config_digilent_spi = get_option('config_digilent_spi')
+config_jlink_spi = get_option('config_jlink_spi')
 config_drkaiser = get_option('config_drkaiser')
 config_dummy = get_option('config_dummy')
 config_ene_lpc = get_option('config_ene_lpc')
 config_ft2232_spi = get_option('config_ft2232_spi')
 config_gfxnvidia = get_option('config_gfxnvidia')
-config_raiden = get_option('config_raiden')
+config_raiden_debug_spi = get_option('config_raiden_debug_spi')
 config_internal = get_option('config_internal')
 config_it8212 = get_option('config_it8212')
 config_linux_mtd = get_option('config_linux_mtd')
@@ -67,6 +68,7 @@ config_usbblaster_spi = get_option('config_usbblaster_spi')
 config_stlinkv3_spi = get_option('config_stlinkv3_spi')
 config_lspcon_i2c_spi = get_option('config_lspcon_i2c_spi')
 config_realtek_mst_i2c_spi = get_option('config_realtek_mst_i2c_spi')
+config_print_wiki= get_option('print_wiki')
 
 cargs = []
 deps = []
@@ -97,12 +99,14 @@ else
   config_digilent_spi = false
   config_developerbox_spi = false
   config_pickit2_spi = false
+  config_raiden_debug_spi = false
 endif
 
 # some programmers require libpci
 if get_option('pciutils')
   srcs += 'pcidev.c'
   deps += dependency('libpci')
+  need_raw_access = true
   cargs += '-DNEED_PCI=1'
 else
   config_atahpt = false
@@ -110,7 +114,6 @@ else
   config_atavia = false
   config_drkaiser = false
   config_gfxnvidia = false
-  config_raiden = false
   config_internal = false
   config_it8212 = false
   config_nic3com = false
@@ -120,7 +123,6 @@ else
   config_nicnatsemi = false
   config_nicrealtek = false
   config_ogp_spi = false
-  config_rayer_spi = false
   config_satamv = false
   config_satasii = false
 endif
@@ -159,6 +161,11 @@ if config_digilent_spi
   srcs += 'digilent_spi.c'
   cargs += '-DCONFIG_DIGILENT_SPI=1'
 endif
+if config_jlink_spi
+  srcs += 'jlink_spi.c'
+  cargs += '-DCONFIG_JLINK_SPI=1'
+  deps += dependency('libjaylink')
+endif
 if config_drkaiser
   srcs += 'drkaiser.c'
   cargs += '-DCONFIG_DRKAISER=1'
@@ -177,9 +184,9 @@ if config_gfxnvidia
   srcs += 'gfxnvidia.c'
   cargs += '-DCONFIG_GFXNVIDIA=1'
 endif
-if config_raiden
+if config_raiden_debug_spi
   srcs += 'raiden_debug_spi.c'
-  cargs += '-DCONFIG_RAIDEN=1'
+  cargs += '-DCONFIG_RAIDEN_DEBUG_SPI=1'
 endif
 if config_internal
   srcs += 'board_enable.c'
@@ -340,14 +347,17 @@ install_headers([
 
 ### CrOS Tree
 srcs += 'power.c'
-srcs += 'search.c'
 srcs += 'file.c'
-srcs += 'm29f400bt.c'
+srcs += 'action_descriptor.c'
+
+srcs += 'cros_alias.c'
 srcs += 'cros_ec.c'
 srcs += 'cros_ec_dev.c'
-srcs += 's25f.c'
-srcs += 'stm50flw0x0x.c'
-srcs += 'action_descriptor.c'
+cargs += '-DCONFIG_CROS_ALIAS=1'
+
+srcs += 'big_lock.c'
+srcs += 'file_lock.c'
+cargs += '-DUSE_BIG_LOCK=1'
 ###
 
 # core modules needed by both the library and the CLI
@@ -362,10 +372,12 @@ srcs += 'helpers.c'
 srcs += 'ich_descriptors.c'
 srcs += 'jedec.c'
 srcs += 'layout.c'
-#srcs += 'libflashrom.c'
+srcs += 'libflashrom.c'
 srcs += 'opaque.c'
 srcs += 'print.c'
 srcs += 'programmer.c'
+srcs += 'programmer_table.c'
+srcs += 's25f.c'
 srcs += 'sfdp.c'
 srcs += 'spi25.c'
 srcs += 'spi25_statusreg.c'
@@ -382,23 +394,23 @@ srcs += 'writeprotect.c'
 
 mapfile = 'libflashrom.map'
 vflag = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), mapfile)
-#flashrom = shared_library(
-#  'flashrom',
-#  sources : [
-#    srcs,
-#  ],
-#  soversion : lt_current,
-#  version : lt_version,
-#  dependencies : [
-#    deps,
-#  ],
-#  c_args : [
-#    cargs,
-#  ],
-#  install : true,
-#  link_args : vflag,
-#  link_depends : mapfile,
-#)
+flashrom = library(
+  'flashrom',
+  sources : [
+    srcs,
+  ],
+  soversion : lt_current,
+  version : lt_version,
+  dependencies : [
+    deps,
+  ],
+  c_args : [
+    cargs,
+  ],
+  install : true,
+  link_args : vflag,
+  link_depends : mapfile,
+)
 
 version = meson.project_version()
 #strip leading characters
@@ -409,20 +421,14 @@ if version.startswith('p')
   version = version.split('p')[1]
 endif
 
-#pkgg = import('pkgconfig')
-#pkgg.generate(
-#  libraries : flashrom,
-#  version : version,
-#  name : 'flashrom',
-#  filebase : 'flashrom',
-#  description : 'library to interact with flashrom',
-#)
-#
-#flashrom_dep = declare_dependency(
-#  link_with : flashrom,
-#  include_directories : include_directories('.'),
-#  dependencies : deps
-#)
+pkgg = import('pkgconfig')
+pkgg.generate(
+  libraries : flashrom,
+  version : version,
+  name : 'flashrom',
+  filebase : 'flashrom',
+  description : 'library to interact with flashrom',
+)
 
 conf.set('VERSION', version)
 conf.set('MAN_DATE', run_command('util/getrevision.sh', '--date', 'flashrom.8.tmpl').stdout().strip())
@@ -434,6 +440,11 @@ configure_file(
   install_dir: join_paths(mandir, 'man8'),
 )
 
+
+if config_print_wiki
+  srcs += 'print_wiki.c'
+  cargs += '-DCONFIG_PRINT_WIKI=1'
+endif
 
 # we can't just link_with libflashrom as we require all the internal symbols...
 executable(
@@ -450,7 +461,6 @@ executable(
   ],
   c_args : [
     cargs,
-    '-DSTANDALONE',
     '-DCONFIG_DEFAULT_PROGRAMMER=PROGRAMMER_INVALID',
     '-DCONFIG_DEFAULT_PROGRAMMER_ARGS=""',
   ],
@@ -459,3 +469,31 @@ executable(
 )
 
 #subdir('util')
+
+# unit-test framework
+cmocka_dep = dependency(
+  'cmocka',
+  fallback: ['cmocka', 'cmocka_dep'],
+  required: false
+)
+flashrom_test_dep = declare_dependency(
+  include_directories : include_directories('.'),
+  sources : [
+    srcs,
+    'cli_common.c',
+    'cli_output.c',
+    'flashrom.c',
+  ],
+  compile_args : [
+    '-includestdlib.h',
+    '-includeunittest_env.h',
+    '-includehwaccess_x86_io_unittest.h'
+  ],
+  dependencies : [
+    deps,
+  ],
+)
+
+if cmocka_dep.found()
+  subdir('tests')
+endif
