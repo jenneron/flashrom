@@ -1510,9 +1510,11 @@ int raiden_debug_spi_init(void)
 			found = 1;
 			goto loop_end;
 		} else {
-			unsigned char dev_serial[32] = { 0 };
+			unsigned char dev_serial[32];
 			struct libusb_device_descriptor descriptor;
 			int rc;
+
+			memset(dev_serial, 0, sizeof(dev_serial));
 
 			if (libusb_get_device_descriptor(device->device, &descriptor)) {
 				msg_pdbg("USB: Failed to get device descriptor.\n");
@@ -1577,25 +1579,25 @@ loop_end:
 		(request_enable == RAIDEN_DEBUG_SPI_REQ_ENABLE_EC))
 		usleep(50 * 1000);
 
-	struct spi_master *spi_config = calloc(1, sizeof(*spi_config));
+	struct spi_master *spi_config = calloc(1, sizeof(struct spi_master));
 	if (!spi_config) {
 		msg_perr("Unable to allocate space for SPI master.\n");
 		return SPI_GENERIC_ERROR;
 	}
-	struct raiden_debug_spi_data *data = calloc(1, sizeof(*data));
+	struct raiden_debug_spi_data *data = calloc(1, sizeof(struct raiden_debug_spi_data));
 	if (!data) {
 		free(spi_config);
 		msg_perr("Unable to allocate space for extra SPI master data.\n");
 		return SPI_GENERIC_ERROR;
 	}
 
-	*spi_config = spi_master_raiden_debug;
+	memcpy(spi_config, &spi_master_raiden_debug, sizeof(struct spi_master));
 
 	data->dev = device;
 	data->in_ep = in_endpoint;
 	data->out_ep = out_endpoint;
 
-	spi_config->data = data; /* data is needed to configure protocol below */
+	spi_config->data = data;
 	/*
 	 * The SPI master needs to be configured based on the device connected.
 	 * Using the device protocol interrogation, we will set the limits on
@@ -1612,7 +1614,7 @@ loop_end:
 		return SPI_GENERIC_ERROR;
 	}
 
-	register_spi_master(spi_config, data);
+	register_spi_master(spi_config);
 	register_shutdown(raiden_debug_spi_shutdown, spi_config);
 
 	return 0;

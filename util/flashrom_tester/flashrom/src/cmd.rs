@@ -90,7 +90,8 @@ fn flashrom_decode_opts(opts: FlashromOpt) -> Vec<String> {
     if opts.wp_opt.range.is_some() {
         let (x0, x1) = opts.wp_opt.range.unwrap();
         params.push("--wp-range".to_string());
-        params.push(hex_range_string(x0, x1));
+        params.push(hex_string(x0));
+        params.push(hex_string(x1));
     }
     if opts.wp_opt.status {
         params.push("--wp-status".to_string());
@@ -128,6 +129,9 @@ fn flashrom_decode_opts(opts: FlashromOpt) -> Vec<String> {
 
     if opts.flash_name {
         params.push("--flash-name".to_string());
+    }
+    if opts.ignore_fmap {
+        params.push("--ignore-fmap".to_string());
     }
     if opts.verbose {
         params.push("-V".to_string());
@@ -205,8 +209,8 @@ fn dut_ctrl(args: &[&str]) -> Result<(Vec<u8>, Vec<u8>), FlashromError> {
     Ok((output.stdout, output.stderr))
 }
 
-fn hex_range_string(s: i64, l: i64) -> String {
-    format!("{:#08X},{:#08X}", s, l).to_string()
+fn hex_string(v: i64) -> String {
+    format!("{:#08X}", v).to_string()
 }
 
 #[cfg(test)]
@@ -233,7 +237,7 @@ mod tests {
                 status: true,
                 ..Default::default()
             },
-            &["--wp-range", "0x000000,0x0004D2", "--wp-status"],
+            &["--wp-range", "0x000000", "0x0004D2", "--wp-status"],
         );
         test_wp_opt(
             WPOpt {
@@ -322,10 +326,11 @@ mod tests {
         assert_eq!(
             flashrom_decode_opts(FlashromOpt {
                 flash_name: true,
+                ignore_fmap: true,
                 verbose: true,
                 ..Default::default()
             }),
-            &["--flash-name", "-V"]
+            &["--flash-name", "--ignore-fmap", "-V"]
         );
     }
 

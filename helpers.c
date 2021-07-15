@@ -106,16 +106,15 @@ char* strtok_r(char *str, const char *delim, char **nextp)
 /* strndup is a POSIX function not present in MinGW */
 char *strndup(const char *src, size_t maxlen)
 {
-	char *retbuf;
-	size_t len;
-	for (len = 0; len < maxlen; len++)
-		if (src[len] == '\0')
-			break;
-	if ((retbuf = malloc(1 + len)) != NULL) {
-		memcpy(retbuf, src, len);
-		retbuf[len] = '\0';
+	if (strlen(src) > maxlen) {
+		char *retbuf;
+		if ((retbuf = malloc(1 + maxlen)) != NULL) {
+			memcpy(retbuf, src, maxlen);
+			retbuf[maxlen] = '\0';
+		}
+		return retbuf;
 	}
-	return retbuf;
+	return strdup(src);
 }
 #endif
 

@@ -177,7 +177,7 @@ static int wbsio_spi_read(struct flashctx *flash, uint8_t *buf,
 	return 0;
 }
 
-static const struct spi_master spi_master_wbsio = {
+static struct spi_master spi_master_wbsio = {
 	.max_data_read = MAX_DATA_UNSPECIFIED,
 	.max_data_write = MAX_DATA_UNSPECIFIED,
 	.command = wbsio_spi_send_command,
@@ -207,7 +207,7 @@ int wbsio_check_for_spi(void)
 		 "1024 kB!\n", __func__);
 	max_rom_decode.spi = 1024 * 1024;
 
-	struct wbsio_spi_data *data = calloc(1, sizeof(*data));
+	struct wbsio_spi_data * data = calloc(1, sizeof(struct wbsio_spi_data));
 	if (!data) {
 		msg_perr("Unable to allocate space for extra SPI master data.\n");
 		return SPI_GENERIC_ERROR;
@@ -215,7 +215,8 @@ int wbsio_check_for_spi(void)
 	data->spibase = wbsio_spibase;
 
 	register_shutdown(wbsio_spi_shutdown, data);
-	register_spi_master(&spi_master_wbsio, data);
+	spi_master_wbsio.data = data;
+	register_spi_master(&spi_master_wbsio);
 
 	return 0;
 }

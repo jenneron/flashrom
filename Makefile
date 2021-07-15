@@ -30,7 +30,7 @@ INSTALL = install
 DIFF    = diff
 PREFIX  ?= /usr/local
 MANDIR  ?= $(PREFIX)/share/man
-CFLAGS  ?= -Os -Wall -Wextra -Wno-unused-parameter -Wshadow -Wmissing-prototypes -Wwrite-strings
+CFLAGS  ?= -Os -Wall -Wshadow
 EXPORTDIR ?= .
 RANLIB  ?= ranlib
 PKG_CONFIG ?= pkg-config
@@ -201,11 +201,6 @@ ifeq ($(CONFIG_CH341A_SPI), yes)
 UNSUPPORTED_FEATURES += CONFIG_CH341A_SPI=yes
 else
 override CONFIG_CH341A_SPI = no
-endif
-ifeq ($(CONFIG_RAIDEN_DEBUG_SPI), yes)
-UNSUPPORTED_FEATURES += CONFIG_RAIDEN_DEBUG_SPI=yes
-else
-override CONFIG_RAIDEN_DEBUG_SPI = no
 endif
 ifeq ($(CONFIG_STLINKV3_SPI), yes)
 UNSUPPORTED_FEATURES += CONFIG_STLINKV3_SPI=yes
@@ -654,7 +649,8 @@ endif
 CHIP_OBJS = jedec.o stm50.o w39.o w29ee011.o \
 	sst28sf040.o 82802ab.o \
 	sst49lfxxxc.o sst_fwhub.o edi.o flashchips.o spi.o spi25.o spi25_statusreg.o \
-	spi95.o opaque.o sfdp.o en29lv640b.o at45db.o writeprotect.o s25f.o
+	spi95.o opaque.o sfdp.o en29lv640b.o at45db.o writeprotect.o \
+	stm50flw0x0x.o s25f.o m29f400bt.o
 
 ###############################################################################
 # Library code.
@@ -662,8 +658,8 @@ CHIP_OBJS = jedec.o stm50.o w39.o w29ee011.o \
 LOCK_OBJS = big_lock.o file_lock.o
 LIB_OBJS += $(LOCK_OBJS)
 FEATURE_CFLAGS += -D'USE_BIG_LOCK=1'
-LIB_OBJS += libflashrom.o layout.o flashrom.o udelay.o programmer.o programmer_table.o helpers.o ich_descriptors.o fmap.o
-LIB_OBJS += file.o power.o action_descriptor.o
+LIB_OBJS += layout.o flashrom.o udelay.o programmer.o helpers.o ich_descriptors.o fmap.o
+LIB_OBJS += file.o power.o search.o action_descriptor.o
 
 ###############################################################################
 # Frontend related stuff.
@@ -700,9 +696,6 @@ CONFIG_SERPROG ?= yes
 
 # RayeR SPIPGM hardware support
 CONFIG_RAYER_SPI ?= yes
-
-# ChromiumOS servo DUT debug board hardware support
-CONFIG_RAIDEN_DEBUG_SPI ?= yes
 
 # Always enable 3Com NICs for now.
 CONFIG_NIC3COM ?= yes
@@ -768,6 +761,9 @@ CONFIG_OGP_SPI ?= yes
 # Always enable Bus Pirate SPI for now.
 CONFIG_BUSPIRATE_SPI ?= yes
 
+# Raiden Debug SPI-over-USB support.
+CONFIG_RAIDEN_DEBUG_SPI ?= no
+
 # Always enable Dediprog SF100 for now.
 CONFIG_DEDIPROG ?= yes
 
@@ -807,7 +803,7 @@ override CONFIG_DEDIPROG = no
 override CONFIG_DIGILENT_SPI = no
 override CONFIG_DEVELOPERBOX_SPI = no
 override CONFIG_PICKIT2_SPI = no
-override CONFIG_RAIDEN_DEBUG_SPI = no
+override CONFIG_RAIDEN = no
 override CONFIG_STLINKV3_SPI = no
 endif
 ifeq ($(CONFIG_ENABLE_LIBPCI_PROGRAMMERS), no)
@@ -1664,17 +1660,12 @@ endif
 		( echo "found."; echo "UTSNAME := yes" >> .features.tmp ) ||	\
 		( echo "not found."; echo "UTSNAME := no" >> .features.tmp ) } 2>>$(BUILD_DETAILS_FILE) | tee -a $(BUILD_DETAILS_FILE)
 	@printf "Checking for clock_gettime support... " | tee -a $(BUILD_DETAILS_FILE)
-ifeq ($(DISABLE_CLOCK_GETTIME), yes)
-	@ { ( echo "disabled."; echo "CLOCK_GETTIME := no" >>.features.tmp ) } \
-		2>>$(BUILD_DETAILS_FILE) | tee -a $(BUILD_DETAILS_FILE)
-else
 	@echo "$$CLOCK_GETTIME_TEST" >.featuretest.c
 	@printf "\nexec: %s\n" "$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -lrt .featuretest.c -o .featuretest$(EXEC_SUFFIX)" >>$(BUILD_DETAILS_FILE)
 	@ { $(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -lrt .featuretest.c -o .featuretest$(EXEC_SUFFIX) >&2 && \
 		( echo "found."; echo "CLOCK_GETTIME := yes" >>.features.tmp ) || \
 		( echo "not found."; echo "CLOCK_GETTIME := no" >>.features.tmp ) } \
 		2>>$(BUILD_DETAILS_FILE) | tee -a $(BUILD_DETAILS_FILE)
-endif
 	@$(DIFF) -q .features.tmp .features >/dev/null 2>&1 && rm .features.tmp || mv .features.tmp .features
 	@rm -f .featuretest.c .featuretest$(EXEC_SUFFIX)
 

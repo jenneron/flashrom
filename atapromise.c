@@ -53,6 +53,20 @@ const struct dev_entry ata_promise[] = {
 	{0},
 };
 
+static void atapromise_chip_writeb(const struct flashctx *flash, uint8_t val, chipaddr addr);
+static uint8_t atapromise_chip_readb(const struct flashctx *flash, const chipaddr addr);
+
+static const struct par_master par_master_atapromise = {
+		.chip_readb		= atapromise_chip_readb,
+		.chip_readw		= fallback_chip_readw,
+		.chip_readl		= fallback_chip_readl,
+		.chip_readn		= fallback_chip_readn,
+		.chip_writeb		= atapromise_chip_writeb,
+		.chip_writew		= fallback_chip_writew,
+		.chip_writel		= fallback_chip_writel,
+		.chip_writen		= fallback_chip_writen,
+};
+
 void *atapromise_map(const char *descr, uintptr_t phys_addr, size_t len)
 {
 	/* In case fallback_map ever returns something other than NULL. */
@@ -92,32 +106,6 @@ static void atapromise_limit_chip(struct flashchip *chip)
 	}
 }
 
-static void atapromise_chip_writeb(const struct flashctx *flash, uint8_t val, chipaddr addr)
-{
-	uint32_t data;
-
-	atapromise_limit_chip(flash->chip);
-	data = (rom_base_addr + (addr & ADDR_MASK)) << 8 | val;
-	OUTL(data, io_base_addr + 0x14);
-}
-
-static uint8_t atapromise_chip_readb(const struct flashctx *flash, const chipaddr addr)
-{
-	atapromise_limit_chip(flash->chip);
-	return pci_mmio_readb(atapromise_bar + (addr & ADDR_MASK));
-}
-
-static const struct par_master par_master_atapromise = {
-		.chip_readb		= atapromise_chip_readb,
-		.chip_readw		= fallback_chip_readw,
-		.chip_readl		= fallback_chip_readl,
-		.chip_readn		= fallback_chip_readn,
-		.chip_writeb		= atapromise_chip_writeb,
-		.chip_writew		= fallback_chip_writew,
-		.chip_writel		= fallback_chip_writel,
-		.chip_writen		= fallback_chip_writen,
-};
-
 int atapromise_init(void)
 {
 	struct pci_dev *dev = NULL;
@@ -152,7 +140,7 @@ int atapromise_init(void)
 	}
 
 	max_rom_decode.parallel = rom_size;
-	register_par_master(&par_master_atapromise, BUS_PARALLEL, NULL);
+	register_par_master(&par_master_atapromise, BUS_PARALLEL);
 
 	msg_pwarn("Do not use this device as a generic programmer. It will leave anything outside\n"
 		  "the first %zu kB of the flash chip in an undefined state. It works fine for the\n"
@@ -160,6 +148,21 @@ int atapromise_init(void)
 		  rom_size / 1024);
 
 	return 0;
+}
+
+static void atapromise_chip_writeb(const struct flashctx *flash, uint8_t val, chipaddr addr)
+{
+	uint32_t data;
+
+	atapromise_limit_chip(flash->chip);
+	data = (rom_base_addr + (addr & ADDR_MASK)) << 8 | val;
+	OUTL(data, io_base_addr + 0x14);
+}
+
+static uint8_t atapromise_chip_readb(const struct flashctx *flash, const chipaddr addr)
+{
+	atapromise_limit_chip(flash->chip);
+	return pci_mmio_readb(atapromise_bar + (addr & ADDR_MASK));
 }
 
 #else

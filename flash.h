@@ -34,7 +34,6 @@
 #undef max
 #endif
 
-#include "libflashrom.h"
 #include "layout.h"
 
 #define KiB (1024)
@@ -43,13 +42,19 @@
 /* Assumes `n` and `a` are at most 64-bit wide (to avoid typeof() operator). */
 #define ALIGN_DOWN(n, a) ((n) & ~((uint64_t)(a) - 1))
 
-struct flashrom_flashctx;
-#define flashctx flashrom_flashctx /* TODO: Agree on a name and convert all occurences. */
+struct flashctx; /* forward declare */
 #define ERROR_PTR ((void*)-1)
 
 /* Error codes */
 #define ERROR_OOM	-100
 #define TIMEOUT_ERROR	-101
+
+/* for verify_it variable in flashrom.c and cli_classic.c */
+enum {
+	VERIFY_OFF = 0,
+	VERIFY_FULL,
+	VERIFY_PARTIAL,
+};
 
 /* TODO: check using code for correct usage of types */
 typedef uintptr_t chipaddr;
@@ -256,7 +261,7 @@ struct flashchip {
 typedef int (*chip_restore_fn_cb_t)(struct flashctx *flash, uint8_t status);
 
 /* struct flashctx must always contain struct flashchip at the beginning. */
-struct flashrom_flashctx {
+struct flashctx {
 	struct flashchip *chip;
 	/* FIXME: The memory mappings should be saved in a more structured way. */
 	/* The physical_* fields store the respective addresses in the physical address space of the CPU. */
@@ -275,7 +280,7 @@ struct flashrom_flashctx {
 		bool force_boardmismatch;
 		bool verify_after_write;
 		bool verify_whole_chip;
-		bool do_not_diff;
+		bool do_diff;
 	} flags;
 	/* We cache the state of the extended address register (highest byte
 	 * of a 4BA for 3BA instructions) and the state of the 4BA mode here.
@@ -348,6 +353,7 @@ void unmap_flash(struct flashctx *flash);
 int read_memmapped(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 int erase_flash(struct flashctx *flash);
 int probe_flash(struct registered_master *mst, int startchip, struct flashctx *fill_flash, int force);
+int read_flash(struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
 int read_flash_to_file(struct flashctx *flash, const char *filename);
 char *extract_param(const char *const *haystack, const char *needle, const char *delim);
 int verify_range(struct flashctx *flash, const uint8_t *cmpbuf, unsigned int start, unsigned int len);
@@ -360,11 +366,15 @@ int read_buf_from_file(unsigned char *buf, unsigned long size, const char *filen
 int write_buf_to_file(const unsigned char *buf, unsigned long size, const char *filename);
 int prepare_flash_access(struct flashctx *, bool read_it, bool write_it, bool erase_it, bool verify_it);
 void finalize_flash_access(struct flashctx *);
+
 int do_read(struct flashctx *, const char *filename);
-int do_extract(struct flashctx *);
-int do_erase(struct flashctx *);
-int do_write(struct flashctx *, const char *const filename, const char *const referencefile);
-int do_verify(struct flashctx *, const char *const filename);
+int do_erase(struct flashctx *, const char *diff_file);
+int do_write(struct flashctx *, const char *const filename, const char *const referencefile, const char *diff_file);
+int do_verify(struct flashctx *, const char *const filename, const char *diff_file);
+int do_extract_it(struct flashctx *);
+
+#define OK 0
+#define NT 1    /* Not tested */
 
 /* what to do in case of an error */
 enum error_action {
@@ -400,7 +410,14 @@ int open_logfile(const char * const filename);
 int close_logfile(void);
 void start_logging(void);
 #endif
-int flashrom_print_cb(enum flashrom_log_level level, const char *fmt, va_list ap);
+enum flashrom_log_level {
+	FLASHROM_MSG_ERROR       = 0,
+	FLASHROM_MSG_WARN        = 1,
+	FLASHROM_MSG_INFO        = 2,
+	FLASHROM_MSG_DEBUG       = 3,
+	FLASHROM_MSG_DEBUG2      = 4,
+	FLASHROM_MSG_SPEW        = 5,
+};
 /* Let gcc and clang check for correct printf-style format strings. */
 int print(enum flashrom_log_level level, const char *fmt, ...)
 #ifdef __MINGW32__
@@ -431,7 +448,7 @@ __attribute__((format(printf, 2, 3)));
 #define msg_cspew(...)	print(FLASHROM_MSG_SPEW, __VA_ARGS__)	/* chip debug spew  */
 
 /* layout.c */
-int register_include_arg(struct layout_include_args **args, const char *arg);
+int register_include_arg(struct layout_include_args **args, char *name);
 int read_romlayout(const char *name);
 int normalize_romentries(const struct flashctx *flash);
 void layout_cleanup(struct layout_include_args **args);

@@ -18,12 +18,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include "flash.h"
-#include "platform.h"
 #include "programmer.h"
 #include "hwaccess.h"
 
 int is_laptop = 0;
-int laptop_ok = 0;
+int laptop_ok = 1;
 
 int force_boardenable = 0;
 int force_boardmismatch = 0;
@@ -327,7 +326,7 @@ int internal_init(void)
 	 * this isn't a laptop. Board-enables may override this,
 	 * non-legacy buses (SPI and opaque atm) are probed anyway.
 	 */
-	if (is_laptop && !(laptop_ok || force_laptop || (not_a_laptop && is_laptop == 2)))
+	if (force_laptop || (not_a_laptop && (is_laptop == 2)))
 		internal_buses_supported = BUS_NONE;
 
 	/* try to enable it. Failure IS an option, since not all motherboards
@@ -354,7 +353,7 @@ int internal_init(void)
 #endif /* IS_X86 */
 
 	if (internal_buses_supported & BUS_NONSPI)
-		register_par_master(&par_master_internal, internal_buses_supported, NULL);
+		register_par_master(&par_master_internal, internal_buses_supported);
 
 	/* Report if a non-whitelisted laptop is detected that likely uses a legacy bus. */
 	if (is_laptop && !laptop_ok) {

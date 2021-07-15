@@ -257,7 +257,7 @@ struct ich_desc_north_strap {
 
 struct ich_desc_south_strap {
 	union {
-		uint32_t STRPs[23]; /* current maximum: gemini lake */
+		uint32_t STRPs[18]; /* current maximum: cougar point */
 		struct { /* ich8 */
 			struct { /* STRP1 */
 				uint32_t ME_DISABLE		:1,
@@ -564,11 +564,6 @@ struct ich_descriptors {
 	struct ich_desc_upper_map upper;
 };
 
-struct ich_layout {
-	struct flashrom_layout base;
-	struct romentry entries[MAX_NUM_FLREGS];
-};
-
 ssize_t ich_number_of_regions(enum ich_chipset cs, const struct ich_desc_content *content);
 ssize_t ich_number_of_masters(enum ich_chipset cs, const struct ich_desc_content *content);
 
@@ -586,7 +581,5 @@ int read_ich_descriptors_from_dump(const uint32_t *dump, size_t len, enum ich_ch
 
 int read_ich_descriptors_via_fdo(enum ich_chipset cs, void *spibar, struct ich_descriptors *desc);
 int getFCBA_component_density(enum ich_chipset cs, const struct ich_descriptors *desc, uint8_t idx);
-
-int layout_from_ich_descriptors(struct ich_layout *, const void *dump, size_t len);
 
 #endif /* __ICH_DESCRIPTORS_H__ */

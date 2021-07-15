@@ -75,9 +75,7 @@
 
 #define BIT(x) (1<<(x))
 
-struct nicintel_spi_data {
-	uint8_t *spibar;
-};
+static uint8_t *nicintel_spibar;
 
 const struct dev_entry nics_intel_spi[] = {
 	{PCI_VENDOR_ID_INTEL, 0x105e, OK, "Intel", "82571EB Gigabit Ethernet Controller"},
@@ -109,68 +107,62 @@ const struct dev_entry nics_intel_spi[] = {
 	{0},
 };
 
-static void nicintel_request_spibus(void *spi_data)
+static void nicintel_request_spibus(void)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp |= BIT(FL_REQ);
-	pci_mmio_writel(tmp, data->spibar + FLA);
+	pci_mmio_writel(tmp, nicintel_spibar + FLA);
 
 	/* Wait until we are allowed to use the SPI bus. */
-	while (!(pci_mmio_readl(data->spibar + FLA) & BIT(FL_GNT))) ;
+	while (!(pci_mmio_readl(nicintel_spibar + FLA) & BIT(FL_GNT))) ;
 }
 
-static void nicintel_release_spibus(void *spi_data)
+static void nicintel_release_spibus(void)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp &= ~BIT(FL_REQ);
-	pci_mmio_writel(tmp, data->spibar + FLA);
+	pci_mmio_writel(tmp, nicintel_spibar + FLA);
 }
 
-static void nicintel_bitbang_set_cs(int val, void *spi_data)
+static void nicintel_bitbang_set_cs(int val)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp &= ~BIT(FL_CS);
 	tmp |= (val << FL_CS);
-	pci_mmio_writel(tmp, data->spibar + FLA);
+	pci_mmio_writel(tmp,  nicintel_spibar + FLA);
 }
 
-static void nicintel_bitbang_set_sck(int val, void *spi_data)
+static void nicintel_bitbang_set_sck(int val)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp &= ~BIT(FL_SCK);
 	tmp |= (val << FL_SCK);
-	pci_mmio_writel(tmp, data->spibar + FLA);
+	pci_mmio_writel(tmp, nicintel_spibar + FLA);
 }
 
-static void nicintel_bitbang_set_mosi(int val, void *spi_data)
+static void nicintel_bitbang_set_mosi(int val)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp &= ~BIT(FL_SI);
 	tmp |= (val << FL_SI);
-	pci_mmio_writel(tmp, data->spibar + FLA);
+	pci_mmio_writel(tmp, nicintel_spibar + FLA);
 }
 
-static int nicintel_bitbang_get_miso(void *spi_data)
+static int nicintel_bitbang_get_miso(void)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	tmp = (tmp >> FL_SO) & 0x1;
 	return tmp;
 }
@@ -185,22 +177,20 @@ static const struct bitbang_spi_master bitbang_spi_master_nicintel = {
 	.half_period = 1,
 };
 
-static int nicintel_spi_shutdown(void *spi_data)
+static int nicintel_spi_shutdown(void *data)
 {
-	struct nicintel_spi_data *data = spi_data;
 	uint32_t tmp;
 
 	/* Disable writes manually. See the comment about EECD in nicintel_spi_init() for details. */
-	tmp = pci_mmio_readl(data->spibar + EECD);
+	tmp = pci_mmio_readl(nicintel_spibar + EECD);
 	tmp &= ~FLASH_WRITES_ENABLED;
 	tmp |= FLASH_WRITES_DISABLED;
-	pci_mmio_writel(tmp, data->spibar + EECD);
+	pci_mmio_writel(tmp, nicintel_spibar + EECD);
 
-	free(data);
 	return 0;
 }
 
-static int nicintel_spi_82599_enable_flash(struct nicintel_spi_data *data)
+static int nicintel_spi_82599_enable_flash(void)
 {
 	uint32_t tmp;
 
@@ -209,52 +199,44 @@ static int nicintel_spi_82599_enable_flash(struct nicintel_spi_data *data)
 	 * but other bits with side effects as well. Those other bits must be
 	 * left untouched.
 	 */
-	tmp = pci_mmio_readl(data->spibar + EECD);
+	tmp = pci_mmio_readl(nicintel_spibar + EECD);
 	tmp &= ~FLASH_WRITES_DISABLED;
 	tmp |= FLASH_WRITES_ENABLED;
-	pci_mmio_writel(tmp, data->spibar + EECD);
+	pci_mmio_writel(tmp, nicintel_spibar + EECD);
 
 	/* test if FWE is really set to allow writes */
-	tmp = pci_mmio_readl(data->spibar + EECD);
+	tmp = pci_mmio_readl(nicintel_spibar + EECD);
 	if ( (tmp & FLASH_WRITES_DISABLED) || !(tmp & FLASH_WRITES_ENABLED) ) {
 		msg_perr("Enabling flash write access failed.\n");
 		return 1;
 	}
 
-	if (register_shutdown(nicintel_spi_shutdown, data))
+	if (register_shutdown(nicintel_spi_shutdown, NULL))
 		return 1;
 
 	return 0;
 }
 
-static int nicintel_spi_i210_shutdown(void *data)
-{
-	free(data);
-	return 0;
-}
-
-static int nicintel_spi_i210_enable_flash(struct nicintel_spi_data *data)
+static int nicintel_spi_i210_enable_flash(void)
 {
 	uint32_t tmp;
 
-	tmp = pci_mmio_readl(data->spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
 	if (tmp & BIT(FL_LOCKED)) {
 		msg_perr("Flash is in Secure Mode. Abort.\n");
 		return 1;
 	}
 
-	if (tmp & BIT(FL_ABORT)) {
-		tmp |= BIT(FL_CLR_ERR);
-		pci_mmio_writel(tmp, data->spibar + FLA);
-		tmp = pci_mmio_readl(data->spibar + FLA);
-		if (!(tmp & BIT(FL_ABORT))) {
-			msg_perr("Unable to clear Flash Access Error. Abort\n");
-			return 1;
-		}
-	}
+	if (!(tmp & BIT(FL_ABORT)))
+		return 0;
 
-	if (register_shutdown(nicintel_spi_i210_shutdown, data))
+	tmp |= BIT(FL_CLR_ERR);
+	pci_mmio_writel(tmp, nicintel_spibar + FLA);
+	tmp = pci_mmio_readl(nicintel_spibar + FLA);
+	if (!(tmp & BIT(FL_ABORT))) {
+		msg_perr("Unable to clear Flash Access Error. Abort\n");
 		return 1;
+	}
 
 	return 0;
 }
@@ -274,37 +256,25 @@ int nicintel_spi_init(void)
 	if (!io_base_addr)
 		return 1;
 
-	struct nicintel_spi_data *data = calloc(1, sizeof(*data));
-	if (!data) {
-		msg_perr("Unable to allocate space for SPI master data\n");
-		return 1;
-	}
-
 	if ((dev->device_id & 0xfff0) == 0x1530) {
-		data->spibar = rphysmap("Intel I210 Gigabit w/ SPI flash", io_base_addr + 0x12000,
+		nicintel_spibar = rphysmap("Intel I210 Gigabit w/ SPI flash", io_base_addr + 0x12000,
 					   MEMMAP_SIZE);
-		if (!data->spibar || nicintel_spi_i210_enable_flash(data)) {
-				free(data);
+		if (!nicintel_spibar || nicintel_spi_i210_enable_flash())
 				return 1;
-		}
 	} else if (dev->device_id < 0x10d8) {
-		data->spibar = rphysmap("Intel Gigabit NIC w/ SPI flash", io_base_addr,
+		nicintel_spibar = rphysmap("Intel Gigabit NIC w/ SPI flash", io_base_addr,
 					   MEMMAP_SIZE);
-		if (!data->spibar || nicintel_spi_82599_enable_flash(data)) {
-				free(data);
+		if (!nicintel_spibar || nicintel_spi_82599_enable_flash())
 				return 1;
-		}
 	} else {
-		data->spibar = rphysmap("Intel 10 Gigabit NIC w/ SPI flash", io_base_addr + 0x10000,
+		nicintel_spibar = rphysmap("Intel 10 Gigabit NIC w/ SPI flash", io_base_addr + 0x10000,
 					   MEMMAP_SIZE);
-		if (!data->spibar || nicintel_spi_82599_enable_flash(data)) {
-				free(data);
+		if (!nicintel_spibar || nicintel_spi_82599_enable_flash())
 				return 1;
-		}
 	}
 
-	if (register_spi_bitbang_master(&bitbang_spi_master_nicintel, data))
-		return 1; /* shutdown function does cleanup */
+	if (register_spi_bitbang_master(&bitbang_spi_master_nicintel))
+		return 1;
 
 	return 0;
 }

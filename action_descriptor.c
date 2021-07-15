@@ -12,16 +12,8 @@
 #include "chipdrivers.h"
 #include "flash.h"
 #include "layout.h"
-#include "platform.h"
 #include "programmer.h"
 
-
-/*
- * This global variable is used to communicate the type of ICH found on the
- * device. When running on non-intel platforms default value of
- * CHIPSET_ICH_UNKNOWN is used.
-*/
-extern enum ich_chipset ich_generation;
 
 /*
  * Unfortunate global state.
@@ -204,7 +196,7 @@ static size_t fill_sorted_erasers(struct flashctx *flash,
 	/* Iterate over all available erase functions/block sizes. */
 	for (j = k = 0; k < NUM_ERASEFUNCTIONS; k++) {
 		size_t new_block_size;
-		size_t m, n;
+		int m, n;
 
 		/* Make sure there is a function in is slot */
 		if (!chip.block_erasers[k].block_erase)
@@ -221,12 +213,12 @@ static size_t fill_sorted_erasers(struct flashctx *flash,
 		for (n = 0; n < NUM_ERASEREGIONS; n++) {
 			const struct eraseblock *eb =
 				chip.block_erasers[k].eraseblocks + n;
-			size_t total = eb->size * eb->count;
+			int total = eb->size * eb->count;
 
 			if (total >= erase_size)
 				break;
 
-			if (total > (size_t)fallback.max_total) {
+			if (total > fallback.max_total) {
 				fallback.max_total = total;
 				fallback.alt_region = n;
 				fallback.alt_function = k;
@@ -319,9 +311,9 @@ static void clear_all_nested(struct range_map *upper_level_map,
 			     unsigned i)
 {
 	struct range_map *this_level_map = upper_level_map - 1;
-	size_t range_start;
-	size_t range_end;
-	size_t j;
+	int range_start;
+	int range_end;
+	int j;
 
 	range_start = upper_level_map->block_size * block_index;
 	range_end = range_start + upper_level_map->block_size;
@@ -352,7 +344,7 @@ static void fold_range_maps(struct range_map *maps,
 			    size_t num_maps,
 			    size_t chip_size)
 {
-	size_t block_index;
+	int block_index;
 	unsigned i;
 	struct range_map *map;
 
@@ -586,7 +578,7 @@ static void fill_action_descriptor(struct action_descriptor *descriptor,
 	consecutive_blocks = 0;
 	pu_index = 0;  /* Number of initialized processing units. */
 	for (i = 0; i < num_sorted_erasers; i++) {
-		size_t j;
+		int j;
 		struct processing_unit *pu;
 		size_t map_size = chip_size/range_maps[i].block_size;
 
@@ -640,10 +632,11 @@ static void fill_action_descriptor(struct action_descriptor *descriptor,
  * In case layout is used, return the largest offset of the end of all
  * included sections. If layout is not used, return zero.
  */
-static size_t top_section_offset(const struct flashrom_layout *layout)
+static size_t top_section_offset(void)
 {
 	size_t top = 0;
-	size_t i;
+	int i;
+	struct flashrom_layout *const layout = get_global_layout();
 
 	for (i = 0; i < layout->num_entries; i++) {
 
@@ -657,7 +650,7 @@ static size_t top_section_offset(const struct flashrom_layout *layout)
 	return top;
 }
 
-bool is_dry_run(void)
+bool is_dry_run()
 {
 	return dry_run;
 }
@@ -699,7 +692,7 @@ struct action_descriptor *prepare_action_descriptor(struct flashctx *flash,
 		 * program - use the highest offset of the highest section as
 		 * the limit.
 		 */
-		block_size = top_section_offset(get_layout(flash));
+		block_size = top_section_offset();
 
 		if (!block_size)
 			/* User did not specify any sections. */

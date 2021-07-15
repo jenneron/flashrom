@@ -1,5 +1,5 @@
 /*
- * Copyright 2010, Google LLC.
+ * Copyright 2015, Google Inc.
  * Copyright 2018-present, Facebook Inc.
  * All rights reserved.
  *
@@ -38,8 +38,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
+
 #include "flash.h"
 #include "fmap.h"
+#include "layout.h"
+#include "search.h"
+
+#define ACPI_FMAP_PATH "/sys/devices/platform/chromeos_acpi/FMAP"
+#define FDT_FMAP_PATH "/proc/device-tree/firmware/chromeos/fmap-offset"
 
 static size_t fmap_size(const struct fmap *fmap)
 {
@@ -195,7 +202,7 @@ static int fmap_bsearch_rom(struct fmap **fmap_out, struct flashctx *const flash
 	if (prepare_flash_access(flashctx, true, false, false, false))
 		return 1;
 
-	fmap = malloc(sizeof(*fmap));
+	fmap = malloc(sizeof(struct fmap));
 	if (!fmap) {
 		msg_gerr("Out of memory.\n");
 		goto _free_ret;
@@ -328,4 +335,299 @@ int fmap_read_from_rom(struct fmap **fmap_out,
 	}
 
 	return ret;
+}
+
+/* Read value from ACPI in sysfs, if it exists. */
+__attribute__((unused)) static int read_fmap_base_acpi(uint32_t *out)
+{
+	int rv = 0;
+	FILE *f;
+
+	if (!(f = fopen(ACPI_FMAP_PATH, "r")))
+		return -1;
+
+	/* FMAP base is an ASCII signed integer. */
+	if (fscanf(f, "%d", (int *)out) != 1)
+		rv = -1;
+
+	fclose(f);
+
+	if (rv)
+		msg_gdbg("%s: failed to read fmap_base from ACPI\n", __func__);
+	else
+		msg_gdbg("%s: read fmap_base from ACPI\n", __func__);
+
+	return rv;
+}
+
+/* Read value from FDT, if it exists. */
+__attribute__((unused)) static int read_fmap_base_fdt(uint32_t *out)
+{
+	int rv = 0;
+	uint32_t data;
+	FILE *f;
+
+	if (!(f = fopen(FDT_FMAP_PATH, "r")))
+		return -1;
+
+	/* Value is stored as network-byte order dword. */
+	if (fread(&data, sizeof(data), 1, f) != 1)
+		rv = -1;
+	else
+		*out = ntohl(data);
+
+	fclose(f);
+
+	if (rv)
+		msg_gdbg("%s: failed to read fmap_base from FDT\n", __func__);
+	else
+		msg_gdbg("%s: read fmap_base from FDT\n", __func__);
+
+	return rv;
+}
+
+/*
+ * Find the FMAP base from ACPI or FDT.
+ * @search: Search information
+ * @offset: Place to put offset
+ * @return 0 if offset found, -1 if not
+ */
+static int get_fmap_base(struct search_info *search, off_t *offset)
+{
+	uint32_t fmap_base;
+	uint32_t from_top;
+
+#if IS_X86
+	if (read_fmap_base_acpi(&fmap_base) < 0)
+		return -1;
+#elif IS_ARM
+	if (read_fmap_base_fdt(&fmap_base) < 0)
+		return -1;
+#else
+	return -1;
+#endif
+
+	/*
+	 * TODO(b/158017386): see if we can remove this hack.  It may
+	 * only apply to older platforms which are now AUE.
+	 *
+	 * There are 2 kinds of fmap_base.
+	 *
+	 *  1. Shadow ROM/BIOS area (x86), such as 0xFFxxxxxx.
+	 *  2. Offset to start of flash, such as 0x00xxxxxx.
+	 *
+	 * The shadow ROM is a cached copy of the BIOS ROM which resides below
+	 * 4GB host/CPU memory address space on x86. The top of BIOS address
+	 * aligns to the last byte of address space, 0xFFFFFFFF. So to obtain
+	 * the ROM offset when shadow ROM is used, we subtract the fmap_base
+	 * from 4G minus 1.
+	 *
+	 *  CPU address                  flash address
+	 *      space                    p     space
+	 *  0xFFFFFFFF   +-------+  ---  +-------+  0x400000
+	 *               |       |   ^   |       | ^
+	 *               |  4MB  |   |   |       | | from_top
+	 *               |       |   v   |       | v
+	 *  fmap_base--> | -fmap | ------|--fmap-|-- the offset we need.
+	 *       ^       |       |       |       |
+	 *       |       +-------+-------+-------+  0x000000
+	 *       |       |       |
+	 *       |       |       |
+	 *       |       |       |
+	 *       |       |       |
+	 *  0x00000000   +-------+
+	 *
+	 * We'll use bit 31 to determine if the shadow BIOS area is being used.
+	 * This is sort of a hack, but allows us to perform sanity checking for
+	 * older x86-based Chrome OS platforms.
+	 */
+
+	msg_gdbg("%s: fmap_base: %#x, ROM size: 0x%zx\n",
+		 __func__, fmap_base, search->total_size);
+
+	if (fmap_base & (1 << 31)) {
+		from_top = 0xFFFFFFFF - fmap_base + 1;
+		msg_gdbg("%s: fmap is located in shadow ROM, from_top: %#x\n",
+			 __func__, from_top);
+		if (from_top > search->total_size)
+			return -1;
+		*offset = search->total_size - from_top;
+	} else {
+		msg_gdbg("%s: fmap is located in physical ROM\n", __func__);
+		if (fmap_base > search->total_size)
+			return -1;
+		*offset = fmap_base;
+	}
+
+	msg_gdbg("%s: ROM offset: %#jx\n", __func__, (intmax_t)*offset);
+	return 0;
+}
+
+static int add_fmap_entries_from_buf(const uint8_t *buf)
+{
+	struct fmap *fmap;
+	int i;
+	struct flashrom_layout *const layout = get_global_layout();
+
+	fmap = (struct fmap *)(buf);
+
+	for (i = 0; i < fmap->nareas; i++) {
+		if (layout->num_entries >= MAX_ROMLAYOUT) {
+			msg_gerr("ROM image contains too many regions\n");
+			return -1;
+		}
+		layout->entries[layout->num_entries].start = fmap->areas[i].offset;
+
+		/*
+		 * Flashrom rom entries use absolute addresses. So for non-zero
+		 * length entries, we need to subtract 1 from offset + size to
+		 * determine the end address.
+		 */
+		layout->entries[layout->num_entries].end = fmap->areas[i].offset +
+		                             fmap->areas[i].size;
+		if (fmap->areas[i].size)
+			layout->entries[layout->num_entries].end--;
+
+		size_t name_len = sizeof(fmap->areas[i].name);
+		layout->entries[layout->num_entries].name = calloc(1, name_len);
+		memcpy(layout->entries[layout->num_entries].name, fmap->areas[i].name, name_len);
+
+		layout->entries[layout->num_entries].included = 0;
+		layout->entries[layout->num_entries].file = NULL;
+
+		msg_gdbg("added fmap region \"%s\", start: 0x%08x, end: 0x%08x\n",
+			  layout->entries[layout->num_entries].name,
+			  layout->entries[layout->num_entries].start,
+			  layout->entries[layout->num_entries].end);
+		layout->num_entries++;
+	}
+
+	return layout->num_entries;
+}
+
+enum found_t {
+	FOUND_NONE,
+	FOUND_FMAP,
+};
+
+/* returns the number of entries added, or <0 to indicate error */
+static int add_fmap_entries(void *source_handle,
+			    size_t image_size,
+			    int (*read_chunk)(void *handle,
+					      void *dest,
+					      size_t offset,
+					      size_t size))
+{
+	static enum found_t found = FOUND_NONE;
+	struct search_info search;
+	struct fmap fmap_header;
+	uint8_t *buf = NULL;
+	off_t offset;
+	struct flashrom_layout *const layout = get_global_layout();
+
+	if (found != FOUND_NONE) {
+		msg_gdbg("Already found fmap entries, not searching again.\n");
+		return 0;
+	}
+
+	search_init(&search, source_handle,
+		    image_size, sizeof(fmap_header), read_chunk);
+	search.handler = get_fmap_base;
+	while (found == FOUND_NONE && !search_find_next(&search, &offset)) {
+		if (search.image) {
+			memcpy(&fmap_header, search.image + offset,
+			       sizeof(fmap_header));
+		} else if (read_chunk(source_handle, (uint8_t *)&fmap_header,
+				      offset, sizeof(fmap_header))) {
+			msg_gdbg("[L%d] failed to read flash at offset %#jx\n",
+				 __LINE__, (intmax_t)offset);
+			return -1;
+		}
+		if (!is_valid_fmap(&fmap_header))
+			continue;
+		int buf_size = fmap_size(&fmap_header);
+		buf = calloc(1, buf_size);
+
+		if (read_chunk(source_handle, buf, offset, buf_size)) {
+			msg_gdbg("[L%d] failed to read %d bytes at offset 0x%lx\n",
+				 __LINE__, buf_size, (unsigned long)offset);
+			return -1;
+		} else {
+			found = FOUND_FMAP;
+		}
+	}
+
+	switch (found) {
+	case FOUND_FMAP:
+		layout->num_entries = add_fmap_entries_from_buf(buf);
+		break;
+	default:
+		msg_gdbg("%s: no fmap present\n", __func__);
+	}
+	if (buf)
+		free(buf);
+	search_free(&search);
+
+	return layout->num_entries;
+}
+
+/*
+ * read_chunk() callback used when reading contents from a file.
+ */
+static int read_from_file(void *fhandle,
+			  void *dest,
+			  size_t offset,
+			  size_t size)
+{
+	FILE *handle = fhandle;
+
+	if (fseek(handle, offset, SEEK_SET)) {
+		msg_cerr("%s failed to seek to position %zd\n",
+			 __func__, offset);
+		return 1;
+	}
+
+	if (fread(dest, 1, size, handle) != size) {
+		msg_cerr("%s failed to read %zd bytes\n",
+			 __func__, offset);
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * read_chunk() callback used when reading contents from the flash device.
+ */
+static int read_from_flash(void *handle,
+			   void *dest,
+			   size_t offset,
+			   size_t size)
+{
+	struct flashctx *flash = handle;
+
+	return read_flash(flash, dest, offset, size);
+}
+
+int get_fmap_entries(const char *filename, struct flashctx *flash)
+{
+	int rv;
+	size_t image_size = flash->chip->total_size * 1024;
+
+	/* Let's try retrieving entries from file. */
+	if (filename) {
+		FILE *handle;
+
+		handle = fopen(filename, "r");
+		if (handle) {
+			rv = add_fmap_entries(handle,
+					      image_size, read_from_file);
+			fclose(handle);
+			if (rv > 0)
+				return rv;
+			msg_cerr("No fmap entries found in %s\n", filename);
+		}
+	}
+
+	return add_fmap_entries(flash, image_size, read_from_flash);
 }

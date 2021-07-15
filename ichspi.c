@@ -29,7 +29,6 @@
 #include "spi.h"
 #include "ich_descriptors.h"
 #include "action_descriptor.h"
-#include "chipdrivers.h"
 
 /* Apollo Lake */
 #define APL_REG_FREG12		0xe0	/* 32 Bytes Flash Region 12 */
@@ -297,40 +296,12 @@ static uint16_t REGREAD8(int X)
 #define REGWRITE8(off, val)  mmio_writeb(val, ich_spibar+(off))
 
 /* Common SPI functions */
-
-static int find_opcode(OPCODES *op, uint8_t opcode)
-{
-	int a;
-
-	if (op == NULL) {
-		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
-		return -1;
-	}
-
-	for (a = 0; a < 8; a++) {
-		if (op->opcode[a].opcode == opcode)
-			return a;
-	}
-
-	return -1;
-}
-
-static int find_preop(OPCODES *op, uint8_t preop)
-{
-	int a;
-
-	if (op == NULL) {
-		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
-		return -1;
-	}
-
-	for (a = 0; a < 2; a++) {
-		if (op->preop[a] == preop)
-			return a;
-	}
-
-	return -1;
-}
+static int find_opcode(OPCODES *op, uint8_t opcode);
+static int find_preop(OPCODES *op, uint8_t preop);
+static int generate_opcodes(OPCODES * op, enum ich_chipset ich_gen);
+static int program_opcodes(OPCODES *op, int enable_undo, enum ich_chipset ich_gen);
+static int run_opcode(const struct flashctx *flash, OPCODE op, uint32_t offset,
+		      uint8_t datalength, uint8_t * data);
 
 /* for pairing opcodes with their required preop */
 struct preop_opcode_pair {
@@ -438,7 +409,6 @@ static void prettyprint_ich9_reg_hsfs(uint16_t reg_val, enum ich_chipset ich_gen
 	case CHIPSET_100_SERIES_SUNRISE_POINT:
 	case CHIPSET_C620_SERIES_LEWISBURG:
 	case CHIPSET_300_SERIES_CANNON_POINT:
-	case CHIPSET_400_SERIES_COMET_POINT:
 		break;
 	default:
 		pprint_reg(HSFS, BERASE, reg_val, ", ");
@@ -449,7 +419,6 @@ static void prettyprint_ich9_reg_hsfs(uint16_t reg_val, enum ich_chipset ich_gen
 	case CHIPSET_100_SERIES_SUNRISE_POINT:
 	case CHIPSET_C620_SERIES_LEWISBURG:
 	case CHIPSET_300_SERIES_CANNON_POINT:
-	case CHIPSET_400_SERIES_COMET_POINT:
 		pprint_reg(HSFS, PRR34_LOCKDN, reg_val, ", ");
 		pprint_reg(HSFS, WRSDIS, reg_val, ", ");
 		break;
@@ -469,7 +438,6 @@ static void prettyprint_ich9_reg_hsfc(uint16_t reg_val, enum ich_chipset ich_gen
 	case CHIPSET_100_SERIES_SUNRISE_POINT:
 	case CHIPSET_C620_SERIES_LEWISBURG:
 	case CHIPSET_300_SERIES_CANNON_POINT:
-	case CHIPSET_400_SERIES_COMET_POINT:
 		_pprint_reg(HSFC, PCH100_HSFC_FCYCLE, PCH100_HSFC_FCYCLE_OFF, reg_val, ", ");
 		pprint_reg(HSFC, WET, reg_val, ", ");
 		break;
@@ -534,6 +502,131 @@ static uint8_t lookup_spi_type(uint8_t opcode)
 	}
 
 	return 0xFF;
+}
+
+static int reprogram_opcode_on_the_fly(uint8_t opcode, unsigned int writecnt, unsigned int readcnt)
+{
+	uint8_t spi_type;
+
+	spi_type = lookup_spi_type(opcode);
+	if (spi_type > 3) {
+		/* Try to guess spi type from read/write sizes.
+		 * The following valid writecnt/readcnt combinations exist:
+		 * writecnt  = 4, readcnt >= 0
+		 * writecnt  = 1, readcnt >= 0
+		 * writecnt >= 4, readcnt  = 0
+		 * writecnt >= 1, readcnt  = 0
+		 * writecnt >= 1 is guaranteed for all commands.
+		 */
+		if (readcnt == 0)
+			/* if readcnt=0 and writecount >= 4, we don't know if it is WRITE_NO_ADDRESS
+			 * or WRITE_WITH_ADDRESS. But if we use WRITE_NO_ADDRESS and the first 3 data
+			 * bytes are actual the address, they go to the bus anyhow
+			 */
+			spi_type = SPI_OPCODE_TYPE_WRITE_NO_ADDRESS;
+		else if (writecnt == 1) // and readcnt is > 0
+			spi_type = SPI_OPCODE_TYPE_READ_NO_ADDRESS;
+		else if (writecnt == 4) // and readcnt is > 0
+			spi_type = SPI_OPCODE_TYPE_READ_WITH_ADDRESS;
+		else // we have an invalid case
+			return SPI_INVALID_LENGTH;
+	}
+	int oppos = 2;	// use original JEDEC_BE_D8 offset
+	curopcodes->opcode[oppos].opcode = opcode;
+	curopcodes->opcode[oppos].spi_type = spi_type;
+	program_opcodes(curopcodes, 0, ich_generation);
+	oppos = find_opcode(curopcodes, opcode);
+	msg_pdbg2("on-the-fly OPCODE (0x%02X) re-programmed, op-pos=%d\n", opcode, oppos);
+	return oppos;
+}
+
+static int find_opcode(OPCODES *op, uint8_t opcode)
+{
+	int a;
+
+	if (op == NULL) {
+		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
+		return -1;
+	}
+
+	for (a = 0; a < 8; a++) {
+		if (op->opcode[a].opcode == opcode)
+			return a;
+	}
+
+	return -1;
+}
+
+static int find_preop(OPCODES *op, uint8_t preop)
+{
+	int a;
+
+	if (op == NULL) {
+		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
+		return -1;
+	}
+
+	for (a = 0; a < 2; a++) {
+		if (op->preop[a] == preop)
+			return a;
+	}
+
+	return -1;
+}
+
+/* Create a struct OPCODES based on what we find in the locked down chipset. */
+static int generate_opcodes(OPCODES * op, enum ich_chipset ich_gen)
+{
+	int a;
+	uint16_t preop, optype;
+	uint32_t opmenu[2];
+
+	if (op == NULL) {
+		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
+		return -1;
+	}
+
+	switch (ich_gen) {
+	case CHIPSET_ICH7:
+	case CHIPSET_TUNNEL_CREEK:
+	case CHIPSET_CENTERTON:
+		preop = REGREAD16(ICH7_REG_PREOP);
+		optype = REGREAD16(ICH7_REG_OPTYPE);
+		opmenu[0] = REGREAD32(ICH7_REG_OPMENU);
+		opmenu[1] = REGREAD32(ICH7_REG_OPMENU + 4);
+		break;
+	case CHIPSET_ICH8:
+	default:		/* Future version might behave the same */
+		preop = REGREAD16(swseq_data.reg_preop);
+		optype = REGREAD16(swseq_data.reg_optype);
+		opmenu[0] = REGREAD32(swseq_data.reg_opmenu);
+		opmenu[1] = REGREAD32(swseq_data.reg_opmenu + 4);
+		break;
+	}
+
+	op->preop[0] = (uint8_t) preop;
+	op->preop[1] = (uint8_t) (preop >> 8);
+
+	for (a = 0; a < 8; a++) {
+		op->opcode[a].spi_type = (uint8_t) (optype & 0x3);
+		optype >>= 2;
+	}
+
+	for (a = 0; a < 4; a++) {
+		op->opcode[a].opcode = (uint8_t) (opmenu[0] & 0xff);
+		opmenu[0] >>= 8;
+	}
+
+	for (a = 4; a < 8; a++) {
+		op->opcode[a].opcode = (uint8_t) (opmenu[1] & 0xff);
+		opmenu[1] >>= 8;
+	}
+
+	/* No preopcodes used by default. */
+	for (a = 0; a < 8; a++)
+		op->opcode[a].atomic = 0;
+
+	return 0;
 }
 
 static int program_opcodes(OPCODES *op, int enable_undo, enum ich_chipset ich_gen)
@@ -602,42 +695,6 @@ static int program_opcodes(OPCODES *op, int enable_undo, enum ich_chipset ich_ge
 	return 0;
 }
 
-static int reprogram_opcode_on_the_fly(uint8_t opcode, unsigned int writecnt, unsigned int readcnt)
-{
-	uint8_t spi_type;
-
-	spi_type = lookup_spi_type(opcode);
-	if (spi_type > 3) {
-		/* Try to guess spi type from read/write sizes.
-		 * The following valid writecnt/readcnt combinations exist:
-		 * writecnt  = 4, readcnt >= 0
-		 * writecnt  = 1, readcnt >= 0
-		 * writecnt >= 4, readcnt  = 0
-		 * writecnt >= 1, readcnt  = 0
-		 * writecnt >= 1 is guaranteed for all commands.
-		 */
-		if (readcnt == 0)
-			/* if readcnt=0 and writecount >= 4, we don't know if it is WRITE_NO_ADDRESS
-			 * or WRITE_WITH_ADDRESS. But if we use WRITE_NO_ADDRESS and the first 3 data
-			 * bytes are actual the address, they go to the bus anyhow
-			 */
-			spi_type = SPI_OPCODE_TYPE_WRITE_NO_ADDRESS;
-		else if (writecnt == 1) // and readcnt is > 0
-			spi_type = SPI_OPCODE_TYPE_READ_NO_ADDRESS;
-		else if (writecnt == 4) // and readcnt is > 0
-			spi_type = SPI_OPCODE_TYPE_READ_WITH_ADDRESS;
-		else // we have an invalid case
-			return SPI_INVALID_LENGTH;
-	}
-	int oppos = 2;	// use original JEDEC_BE_D8 offset
-	curopcodes->opcode[oppos].opcode = opcode;
-	curopcodes->opcode[oppos].spi_type = spi_type;
-	program_opcodes(curopcodes, 0, ich_generation);
-	oppos = find_opcode(curopcodes, opcode);
-	msg_pdbg2("on-the-fly OPCODE (0x%02X) re-programmed, op-pos=%d\n", opcode, oppos);
-	return oppos;
-}
-
 /*
  * Returns -1 if at least one mandatory opcode is inaccessible, 0 otherwise.
  * FIXME: this should also check for
@@ -704,59 +761,49 @@ static void ich_set_bbar(uint32_t min_addr, enum ich_chipset ich_gen)
 			 min_addr, ichspi_bbar);
 }
 
-/* Create a struct OPCODES based on what we find in the locked down chipset. */
-static int generate_opcodes(OPCODES * op, enum ich_chipset ich_gen)
+/* Read len bytes from the fdata/spid register into the data array.
+ *
+ * Note that using len > flash->mst->spi.max_data_read will return garbage or
+ * may even crash.
+ */
+static void ich_read_data(uint8_t *data, int len, int reg0_off)
 {
-	int a;
-	uint16_t preop, optype;
-	uint32_t opmenu[2];
+	int i;
+	uint32_t temp32 = 0;
 
-	if (op == NULL) {
-		msg_perr("\n%s: null OPCODES pointer!\n", __func__);
-		return -1;
+	for (i = 0; i < len; i++) {
+		if ((i % 4) == 0)
+			temp32 = REGREAD32(reg0_off + i);
+
+		data[i] = (temp32 >> ((i % 4) * 8)) & 0xff;
 	}
+}
 
-	switch (ich_gen) {
-	case CHIPSET_ICH7:
-	case CHIPSET_TUNNEL_CREEK:
-	case CHIPSET_CENTERTON:
-		preop = REGREAD16(ICH7_REG_PREOP);
-		optype = REGREAD16(ICH7_REG_OPTYPE);
-		opmenu[0] = REGREAD32(ICH7_REG_OPMENU);
-		opmenu[1] = REGREAD32(ICH7_REG_OPMENU + 4);
-		break;
-	case CHIPSET_ICH8:
-	default:		/* Future version might behave the same */
-		preop = REGREAD16(swseq_data.reg_preop);
-		optype = REGREAD16(swseq_data.reg_optype);
-		opmenu[0] = REGREAD32(swseq_data.reg_opmenu);
-		opmenu[1] = REGREAD32(swseq_data.reg_opmenu + 4);
-		break;
+/* Fill len bytes from the data array into the fdata/spid registers.
+ *
+ * Note that using len > flash->mst->spi.max_data_write will trash the registers
+ * following the data registers.
+ */
+static void ich_fill_data(const uint8_t *data, int len, int reg0_off)
+{
+	uint32_t temp32 = 0;
+	int i;
+
+	if (len <= 0)
+		return;
+
+	for (i = 0; i < len; i++) {
+		if ((i % 4) == 0)
+			temp32 = 0;
+
+		temp32 |= ((uint32_t) data[i]) << ((i % 4) * 8);
+
+		if ((i % 4) == 3) /* 32 bits are full, write them to regs. */
+			REGWRITE32(reg0_off + (i - (i % 4)), temp32);
 	}
-
-	op->preop[0] = (uint8_t) preop;
-	op->preop[1] = (uint8_t) (preop >> 8);
-
-	for (a = 0; a < 8; a++) {
-		op->opcode[a].spi_type = (uint8_t) (optype & 0x3);
-		optype >>= 2;
-	}
-
-	for (a = 0; a < 4; a++) {
-		op->opcode[a].opcode = (uint8_t) (opmenu[0] & 0xff);
-		opmenu[0] >>= 8;
-	}
-
-	for (a = 4; a < 8; a++) {
-		op->opcode[a].opcode = (uint8_t) (opmenu[1] & 0xff);
-		opmenu[1] >>= 8;
-	}
-
-	/* No preopcodes used by default. */
-	for (a = 0; a < 8; a++)
-		op->opcode[a].atomic = 0;
-
-	return 0;
+	i--;
+	if ((i % 4) != 3) /* Write remaining data to regs. */
+		REGWRITE32(reg0_off + (i - (i % 4)), temp32);
 }
 
 /* This function generates OPCODES from or programs OPCODES to ICH according to
@@ -791,51 +838,6 @@ static int ich_init_opcodes(enum ich_chipset ich_gen)
 		msg_pdbg("done\n");
 		prettyprint_opcodes(curopcodes);
 		return 0;
-	}
-}
-
-/* Fill len bytes from the data array into the fdata/spid registers.
- *
- * Note that using len > flash->mst->spi.max_data_write will trash the registers
- * following the data registers.
- */
-static void ich_fill_data(const uint8_t *data, int len, int reg0_off)
-{
-	uint32_t temp32 = 0;
-	int i;
-
-	if (len <= 0)
-		return;
-
-	for (i = 0; i < len; i++) {
-		if ((i % 4) == 0)
-			temp32 = 0;
-
-		temp32 |= ((uint32_t) data[i]) << ((i % 4) * 8);
-
-		if ((i % 4) == 3) /* 32 bits are full, write them to regs. */
-			REGWRITE32(reg0_off + (i - (i % 4)), temp32);
-	}
-	i--;
-	if ((i % 4) != 3) /* Write remaining data to regs. */
-		REGWRITE32(reg0_off + (i - (i % 4)), temp32);
-}
-
-/* Read len bytes from the fdata/spid register into the data array.
- *
- * Note that using len > flash->mst->spi.max_data_read will return garbage or
- * may even crash.
- */
-static void ich_read_data(uint8_t *data, int len, int reg0_off)
-{
-	int i;
-	uint32_t temp32 = 0;
-
-	for (i = 0; i < len; i++) {
-		if ((i % 4) == 0)
-			temp32 = REGREAD32(reg0_off + i);
-
-		data[i] = (temp32 >> ((i % 4) * 8)) & 0xff;
 	}
 }
 
@@ -1467,9 +1469,6 @@ static const struct flashchip *flash_id_to_entry(uint32_t mfg_id, uint32_t model
 	return NULL;
 }
 
-static uint8_t ich_hwseq_read_status(const struct flashctx *flash);
-static int ich_hwseq_write_status(const struct flashctx *flash, int status);
-
 static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_gen)
 {
 	uint32_t hsfsc, data, mfg_id, model_id;
@@ -1518,12 +1517,7 @@ static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_g
 		flash->chip->page_size = entry->page_size;
 		flash->chip->feature_bits = entry->feature_bits;
 		flash->chip->tested = entry->tested;
-
-		/* Access to status register and access checking*/
-		flash->chip->check_access = ich_hwseq_check_access,
-		flash->chip->read_status = ich_hwseq_read_status,
-		flash->chip->write_status = ich_hwseq_write_status,
-		flash->chip->unlock = &spi_disable_blockprotect;
+		flash->chip->wp = entry->wp;
 	}
 
 	return 1;
@@ -1929,8 +1923,7 @@ static enum ich_access_protection ich9_handle_frap(uint32_t frap, unsigned int i
 		rwperms = FD_REGION_READ_WRITE;
 		if (i == EMBEDDED_CONTROLLER_REGION &&
 		    ich_generation >= CHIPSET_100_SERIES_SUNRISE_POINT) {
-			struct ich_descriptors desc;
-			memset(&desc, 0, sizeof(desc));
+			struct ich_descriptors desc = {{ 0 }};
 			/* Region is RW if flash descriptor override is set */
 			freg = mmio_readl(ich_spibar + PCH100_REG_HSFSC);
 			if ((freg & HSFS_FDV) && !(freg & HSFS_FDOPSS))
@@ -2064,6 +2057,9 @@ static struct opaque_master opaque_master_ich_hwseq = {
 	.read = ich_hwseq_read,
 	.write = ich_hwseq_write,
 	.erase = ich_hwseq_block_erase,
+	.check_access = ich_hwseq_check_access,
+	.read_status = ich_hwseq_read_status,
+	.write_status = ich_hwseq_write_status,
 };
 
 int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
@@ -2074,7 +2070,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 	char *arg;
 	int ich_spi_rw_restricted = 0;
 	int desc_valid = 0;
-	struct ich_descriptors desc = { 0 };
+	struct ich_descriptors desc;
 	enum ich_spi_mode {
 		ich_auto,
 		ich_hwseq,
@@ -2085,14 +2081,14 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 	ich_generation = ich_gen;
 	ich_spibar = spibar;
 
+	memset(&desc, 0x00, sizeof(struct ich_descriptors));
+
 	/* Moving registers / bits */
 	switch (ich_gen) {
 	case CHIPSET_100_SERIES_SUNRISE_POINT:
 	case CHIPSET_C620_SERIES_LEWISBURG:
 	case CHIPSET_300_SERIES_CANNON_POINT:
-	case CHIPSET_400_SERIES_COMET_POINT:
 	case CHIPSET_APOLLO_LAKE:
-	case CHIPSET_GEMINI_LAKE:
 		num_pr			= 6;	/* Includes GPR0 */
 		reg_pr0			= PCH100_REG_FPR0;
 		swseq_data.reg_ssfsc	= PCH100_REG_SSFSC;
@@ -2123,9 +2119,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 		num_freg = 12;	/* 12 MMIO regs, but 16 regions in FD spec */
 		break;
 	case CHIPSET_300_SERIES_CANNON_POINT:
-	case CHIPSET_400_SERIES_COMET_POINT:
 	case CHIPSET_APOLLO_LAKE:
-	case CHIPSET_GEMINI_LAKE:
 		num_freg = 16;
 		break;
 	default:
@@ -2166,7 +2160,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 		}
 		ich_init_opcodes(ich_gen);
 		ich_set_bbar(0, ich_gen);
-		register_spi_master(&spi_master_ich7, NULL);
+		register_spi_master(&spi_master_ich7);
 		break;
 	case CHIPSET_ICH8:
 	default:		/* Future version might behave the same */
@@ -2221,9 +2215,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 		case CHIPSET_100_SERIES_SUNRISE_POINT:
 		case CHIPSET_C620_SERIES_LEWISBURG:
 		case CHIPSET_300_SERIES_CANNON_POINT:
-		case CHIPSET_400_SERIES_COMET_POINT:
 		case CHIPSET_APOLLO_LAKE:
-		case CHIPSET_GEMINI_LAKE:
 			tmp = mmio_readl(spibar + PCH100_REG_DLOCK);
 			msg_pdbg("0x0c: 0x%08x (DLOCK)\n", tmp);
 			prettyprint_pch100_reg_dlock(tmp);
@@ -2297,9 +2289,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 			case CHIPSET_100_SERIES_SUNRISE_POINT:
 			case CHIPSET_C620_SERIES_LEWISBURG:
 			case CHIPSET_300_SERIES_CANNON_POINT:
-			case CHIPSET_400_SERIES_COMET_POINT:
 			case CHIPSET_APOLLO_LAKE:
-			case CHIPSET_GEMINI_LAKE:
 			case CHIPSET_BAYTRAIL:
 				break;
 			default:
@@ -2331,9 +2321,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 			case CHIPSET_100_SERIES_SUNRISE_POINT:
 			case CHIPSET_C620_SERIES_LEWISBURG:
 			case CHIPSET_300_SERIES_CANNON_POINT:
-			case CHIPSET_400_SERIES_COMET_POINT:
 			case CHIPSET_APOLLO_LAKE:
-			case CHIPSET_GEMINI_LAKE:
 				break;
 			default:
 				tmp = mmio_readl(spibar + ICH9_REG_FPB);
@@ -2366,9 +2354,7 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 			switch(ich_gen) {
 			case CHIPSET_100_SERIES_SUNRISE_POINT:
 			case CHIPSET_300_SERIES_CANNON_POINT:
-			case CHIPSET_400_SERIES_COMET_POINT:
 			case CHIPSET_APOLLO_LAKE:
-			case CHIPSET_GEMINI_LAKE:
 				msg_pdbg("Enabling hardware sequencing by default "
 					 "for 100+ series PCH.\n");
 				ich_spi_mode = ich_hwseq;
@@ -2380,12 +2366,9 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 
 		switch(ich_gen) {
 		case CHIPSET_APOLLO_LAKE:
-		case CHIPSET_GEMINI_LAKE:
 			num_fd_regions = APL_GLK_NUM_FD_REGIONS;
 			break;
 		case CHIPSET_100_SERIES_SUNRISE_POINT:
-		case CHIPSET_300_SERIES_CANNON_POINT:
-		case CHIPSET_400_SERIES_COMET_POINT:
 			num_fd_regions = SUNRISEPOINT_NUM_FD_REGIONS;
 			break;
 		default:
@@ -2415,9 +2398,9 @@ int ich_init_spi(void *spibar, enum ich_chipset ich_gen)
 			}
 			hwseq_data.size_comp1 = tmpi;
 
-			register_opaque_master(&opaque_master_ich_hwseq, NULL);
+			register_opaque_master(&opaque_master_ich_hwseq);
 		} else {
-			register_spi_master(&spi_master_ich9, NULL);
+			register_spi_master(&spi_master_ich9);
 		}
 		break;
 	}
@@ -2447,7 +2430,7 @@ int via_init_spi(uint32_t mmio_base)
 	/* Not sure if it speaks all these bus protocols. */
 	internal_buses_supported &= BUS_LPC | BUS_FWH;
 	ich_generation = CHIPSET_ICH7;
-	register_spi_master(&spi_master_via, NULL);
+	register_spi_master(&spi_master_via);
 
 	msg_pdbg("0x00: 0x%04x     (SPIS)\n", mmio_readw(ich_spibar + 0));
 	msg_pdbg("0x02: 0x%04x     (SPIC)\n", mmio_readw(ich_spibar + 2));
