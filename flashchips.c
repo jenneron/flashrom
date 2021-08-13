@@ -4397,10 +4397,10 @@ const struct flashchip flashchips[] = {
 
 		{
 			.vendor		= "GigaDevice",
-			.name		= "GD25LQ128C/GD25LQ128D",
+			.name		= "GD25LQ128C/GD25LQ128D/GD25LQ128E",
 			.bustype	= BUS_SPI,
 			.manufacture_id	= GIGADEVICE_ID,
-			.model_id	= GIGADEVICE_GD25LQ128CD,
+			.model_id	= GIGADEVICE_GD25LQ128CDE,
 			.total_size	= 16384,
 			.page_size	= 256,
 			.feature_bits	= FEATURE_WRSR_WREN | FEATURE_UNBOUND_READ,
