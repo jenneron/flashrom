@@ -26,9 +26,9 @@
 #include "i2c_helper.h"
 
 
-#define MCU_I2C_SLAVE_ADDR 0x94
+#define MCU_I2C_SLAVE_ADDR	0x94
 #define REGISTER_ADDRESS	(0x94 >> 1)
-#define PAGE_SIZE		256
+#define RTK_PAGE_SIZE		128
 #define MAX_SPI_WAIT_RETRIES	1000
 
 #define MCU_MODE 0x6F
@@ -78,7 +78,7 @@ static int get_fd_from_context(const struct flashctx *flash)
 		msg_perr("Unable to extract fd from flash context.\n");
 		return SPI_GENERIC_ERROR;
 	}
-        const struct realtek_mst_i2c_spi_data *data =
+	const struct realtek_mst_i2c_spi_data *data =
 		(const struct realtek_mst_i2c_spi_data *)flash->mst->spi.data;
 
 	return data->fd;
@@ -289,9 +289,14 @@ static int realtek_mst_i2c_spi_send_command(const struct flashctx *flash,
 	return ret;
 }
 
-static int realtek_mst_i2c_spi_map_page(int fd, uint8_t block_idx, uint8_t page_idx, uint8_t byte_idx)
+static int realtek_mst_i2c_spi_map_page(int fd, uint32_t addr)
 {
 	int ret = 0;
+
+	uint8_t block_idx = (addr >> 16) & 0xff;
+	uint8_t page_idx  = (addr >>  8) & 0xff;
+	uint8_t byte_idx  =  addr        & 0xff;
+
 	ret |= realtek_mst_i2c_spi_write_register(fd, MAP_PAGE_BYTE2, block_idx);
 	ret |= realtek_mst_i2c_spi_write_register(fd, MAP_PAGE_BYTE1, page_idx);
 	ret |= realtek_mst_i2c_spi_write_register(fd, MAP_PAGE_BYTE0, byte_idx);
@@ -305,8 +310,8 @@ static int realtek_mst_i2c_spi_write_page(int fd, uint8_t reg, const uint8_t *bu
 	 * Using static buffer with maximum possible size,
 	 * extra byte is needed for prefixing the data port register at index 0.
 	 */
-	uint8_t wbuf[PAGE_SIZE + 1] = { MCU_DATA_PORT };
-	if (len > PAGE_SIZE)
+	uint8_t wbuf[RTK_PAGE_SIZE + 1] = { MCU_DATA_PORT };
+	if (len > RTK_PAGE_SIZE)
 		return SPI_GENERIC_ERROR;
 
 	memcpy(&wbuf[1], buf, len);
@@ -330,10 +335,7 @@ static int realtek_mst_i2c_spi_read(struct flashctx *flash, uint8_t *buf,
 	start--;
 	ret |= realtek_mst_i2c_spi_write_register(fd, 0x60, 0x46); // **
 	ret |= realtek_mst_i2c_spi_write_register(fd, 0x61, OPCODE_READ);
-	uint8_t block_idx = start >> 16;
-	uint8_t page_idx  = start >>  8;
-	uint8_t byte_idx  = start;
-	ret |= realtek_mst_i2c_spi_map_page(fd, block_idx, page_idx, byte_idx);
+	ret |= realtek_mst_i2c_spi_map_page(fd, start);
 	ret |= realtek_mst_i2c_spi_write_register(fd, 0x6a, 0x03);
 	ret |= realtek_mst_i2c_spi_write_register(fd, 0x60, 0x47); // **
 	if (ret)
@@ -350,9 +352,9 @@ static int realtek_mst_i2c_spi_read(struct flashctx *flash, uint8_t *buf,
 	uint8_t dummy;
 	realtek_mst_i2c_spi_read_register(fd, MCU_DATA_PORT, &dummy);
 
-	for (i = 0; i < len; i += PAGE_SIZE) {
+	for (i = 0; i < len; i += RTK_PAGE_SIZE) {
 		ret |= realtek_mst_i2c_spi_read_data(fd, REGISTER_ADDRESS,
-				buf + i, min(len - i, PAGE_SIZE));
+				buf + i, min(len - i, RTK_PAGE_SIZE));
 		if (ret)
 			return ret;
 	}
@@ -373,20 +375,14 @@ static int realtek_mst_i2c_spi_write_256(struct flashctx *flash, const uint8_t *
 	if (fd < 0)
 		return SPI_GENERIC_ERROR;
 
-	ret = realtek_mst_i2c_spi_toggle_gpio_88_strap(fd, true);
-	if (ret)
-		return ret;
-
 	ret |= realtek_mst_i2c_spi_write_register(fd, 0x6D, 0x02); /* write opcode */
-	ret |= realtek_mst_i2c_spi_write_register(fd, 0x71, (PAGE_SIZE - 1)); /* fit len=256 */
+	ret |= realtek_mst_i2c_spi_write_register(fd, 0x71, (RTK_PAGE_SIZE - 1)); /* fit len=256 */
 
-	for (i = 0; i < len; i += PAGE_SIZE) {
-		uint16_t page_len = min(len - i, PAGE_SIZE);
-		if (len - i < PAGE_SIZE)
+	for (i = 0; i < len; i += RTK_PAGE_SIZE) {
+		uint16_t page_len = min(len - i, RTK_PAGE_SIZE);
+		if (len - i < RTK_PAGE_SIZE)
 			ret |= realtek_mst_i2c_spi_write_register(fd, 0x71, page_len-1);
-		uint8_t block_idx = (start + i) >> 16;
-		uint8_t page_idx  = (start + i) >>  8;
-		ret |= realtek_mst_i2c_spi_map_page(fd, block_idx, page_idx, 0);
+		ret |= realtek_mst_i2c_spi_map_page(fd, start + i);
 		if (ret)
 			break;
 
@@ -404,8 +400,6 @@ static int realtek_mst_i2c_spi_write_256(struct flashctx *flash, const uint8_t *
 			break;
 	}
 
-	ret |= realtek_mst_i2c_spi_toggle_gpio_88_strap(fd, false);
-
 	return ret;
 }
 
@@ -416,7 +410,7 @@ static int realtek_mst_i2c_spi_write_aai(struct flashctx *flash, const uint8_t *
 	return SPI_GENERIC_ERROR;
 }
 
-static struct spi_master spi_master_i2c_realtek_mst = {
+static const struct spi_master spi_master_i2c_realtek_mst = {
 	.max_data_read = 16,
 	.max_data_write = 8,
 	.command = realtek_mst_i2c_spi_send_command,
@@ -429,13 +423,18 @@ static struct spi_master spi_master_i2c_realtek_mst = {
 static int realtek_mst_i2c_spi_shutdown(void *data)
 {
 	int ret = 0;
-        struct realtek_mst_i2c_spi_data *realtek_mst_data =
+	struct realtek_mst_i2c_spi_data *realtek_mst_data =
 		(struct realtek_mst_i2c_spi_data *)data;
 	int fd = realtek_mst_data->fd;
+	ret |= realtek_mst_i2c_spi_toggle_gpio_88_strap(fd, false);
 	if (realtek_mst_data->reset) {
-		ret |= realtek_mst_i2c_spi_reset_mpu(fd);
-		if (ret != 0)
-			msg_perr("%s: MCU failed to reset on tear-down.\n", __func__);
+		/*
+		 * Return value for reset mpu is not checked since
+		 * the return value is not guaranteed to be 0 on a
+		 * success reset. Currently there is no way to fix
+		 * that. For more details see b:147402710.
+		 */
+		realtek_mst_i2c_spi_reset_mpu(fd);
 	}
 	i2c_close(fd);
 	free(data);
@@ -443,69 +442,40 @@ static int realtek_mst_i2c_spi_shutdown(void *data)
 	return ret;
 }
 
-static int get_params(int *i2c_bus, int *reset, int *enter_isp)
+static int get_params(int *reset, int *enter_isp)
 {
-	char *bus_str = NULL, *reset_str = NULL, *isp_str = NULL;
+	char *reset_str = NULL, *isp_str = NULL;
 	int ret = SPI_GENERIC_ERROR;
-
-	bus_str = extract_programmer_param("bus");
-	if (bus_str) {
-		char *bus_suffix;
-		errno = 0;
-		int bus = (int)strtol(bus_str, &bus_suffix, 10);
-		if (errno != 0 || bus_str == bus_suffix) {
-			msg_perr("%s: Could not convert 'bus'.\n", __func__);
-			goto _get_params_failed;
-		}
-
-		if (bus < 0 || bus > 255) {
-			msg_perr("%s: Value for 'bus' is out of range(0-255).\n", __func__);
-			goto _get_params_failed;
-		}
-
-		if (strlen(bus_suffix) > 0) {
-			msg_perr("%s: Garbage following 'bus' value.\n", __func__);
-			goto _get_params_failed;
-		}
-
-		msg_pinfo("Using i2c bus %i.\n", bus);
-		*i2c_bus = bus;
-		ret = 0;
-	} else {
-		msg_perr("%s: Bus number not specified.\n", __func__);
-	}
 
 	reset_str = extract_programmer_param("reset-mcu");
 	if (reset_str) {
-		if (reset_str[0] == '1')
+		if (reset_str[0] == '1') {
 			*reset = 1;
-		else if (reset_str[0] == '0')
+		} else if (reset_str[0] == '0') {
 			*reset = 0;
-		else {
+		} else {
 			msg_perr("%s: Incorrect param format, reset-mcu=1 or 0.\n", __func__);
 			ret = SPI_GENERIC_ERROR;
 		}
-	} else
+	} else {
 		*reset = 0; /* Default behaviour is no MCU reset on tear-down. */
+	}
 	free(reset_str);
 
 	isp_str = extract_programmer_param("enter-isp");
 	if (isp_str) {
-		if (isp_str[0] == '1')
+		if (isp_str[0] == '1') {
 			*enter_isp = 1;
-		else if (isp_str[0] == '0')
+		} else if (isp_str[0] == '0') {
 			*enter_isp = 0;
-		else {
+		} else {
 			msg_perr("%s: Incorrect param format, enter-isp=1 or 0.\n", __func__);
 			ret = SPI_GENERIC_ERROR;
 		}
-	} else
+	} else {
 		*enter_isp = 1; /* Default behaviour is enter ISP on setup. */
+	}
 	free(isp_str);
-
-_get_params_failed:
-	if (bus_str)
-		free(bus_str);
 
 	return ret;
 }
@@ -513,12 +483,12 @@ _get_params_failed:
 int realtek_mst_i2c_spi_init(void)
 {
 	int ret = 0;
-	int i2c_bus = 0, reset = 0, enter_isp = 0;
+	int reset = 0, enter_isp = 0;
 
-	if (get_params(&i2c_bus, &reset, &enter_isp))
+	if (get_params(&reset, &enter_isp))
 		return SPI_GENERIC_ERROR;
 
-	int fd = i2c_open(i2c_bus, REGISTER_ADDRESS, 0);
+	int fd = i2c_open_from_programmer_params(REGISTER_ADDRESS, 0);
 	if (fd < 0)
 		return fd;
 
@@ -528,7 +498,13 @@ int realtek_mst_i2c_spi_init(void)
 			return ret;
 	}
 
-	struct realtek_mst_i2c_spi_data *data = calloc(1, sizeof(struct realtek_mst_i2c_spi_data));
+	ret |= realtek_mst_i2c_spi_toggle_gpio_88_strap(fd, true);
+	if (ret) {
+		msg_perr("Unable to toggle gpio 88 strap to True.\n");
+		return ret;
+	}
+
+	struct realtek_mst_i2c_spi_data *data = calloc(1, sizeof(*data));
 	if (!data) {
 		msg_perr("Unable to allocate space for extra SPI master data.\n");
 		return SPI_GENERIC_ERROR;
@@ -537,9 +513,7 @@ int realtek_mst_i2c_spi_init(void)
 	data->fd = fd;
 	data->reset = reset;
 	ret |= register_shutdown(realtek_mst_i2c_spi_shutdown, data);
-
-	spi_master_i2c_realtek_mst.data = data;
-	ret |= register_spi_master(&spi_master_i2c_realtek_mst);
+	ret |= register_spi_master(&spi_master_i2c_realtek_mst, data);
 
 	return ret;
 }

@@ -45,7 +45,7 @@ static const char *get_powerd_lock_file_path(void)
 		"/run/lock/flashrom_powerd.lock";
 }
 
-int disable_power_management()
+int disable_power_management(void)
 {
 	FILE *lock_file = NULL;
 	const char *path = NULL;
@@ -79,7 +79,7 @@ int disable_power_management()
 
 }
 
-int restore_power_management()
+int restore_power_management(void)
 {
 	const char *path = NULL;
 	int result = 0;

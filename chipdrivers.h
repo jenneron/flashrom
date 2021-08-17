@@ -160,13 +160,6 @@ int printlock_regspace2_uniform_64k(struct flashctx *flash);
 int printlock_regspace2_block_eraser_0(struct flashctx *flash);
 int printlock_regspace2_block_eraser_1(struct flashctx *flash);
 
-/* m29f400bt.c */
-int probe_m29f400bt(struct flashctx *flash);
-int block_erase_m29f400bt(struct flashctx *flash, unsigned int start, unsigned int len);
-int block_erase_chip_m29f400bt(struct flashctx *flash, unsigned int start, unsigned int len);
-int write_m29f400bt(struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
-void protect_m29f400bt(struct flashctx *flash, chipaddr bios);
-
 /* sst28sf040.c */
 int erase_chip_28sf040(struct flashctx *flash, unsigned int addr, unsigned int blocklen);
 int erase_sector_28sf040(struct flashctx *flash, unsigned int address, unsigned int sector_size);
@@ -176,17 +169,14 @@ int protect_28sf040(struct flashctx *flash);
 
 /* sst49lfxxxc.c */
 int erase_sector_49lfxxxc(struct flashctx *flash, unsigned int address, unsigned int sector_size);
-int unlock_49lfxxxc(struct flashctx *flash);
 
 /* sst_fwhub.c */
 int printlock_sst_fwhub(struct flashctx *flash);
 int unlock_sst_fwhub(struct flashctx *flash);
 
-/* s25fl.c */
+/* s25f.c */
 int probe_spi_big_spansion(struct flashctx *flash);
 int s25fl_block_erase(struct flashctx *flash, unsigned int addr, unsigned int blocklen);
-
-/* s25f.c */
 int s25f_get_modifier_bits(const struct flashctx *flash, struct modifier_bits *m);
 int s25f_set_modifier_bits(const struct flashctx *flash, struct modifier_bits *m);
 int s25fs_block_erase_d8(struct flashctx *flash, unsigned int addr, unsigned int blocklen);
@@ -210,8 +200,8 @@ int printlock_at49f(struct flashctx *flash);
 /* w29ee011.c */
 int probe_w29ee011(struct flashctx *flash);
 
-/* stm50flw0x0x.c */
-int unlock_stm50flw0x0x(struct flashctx *flash);
+/* stm50.c */
+int erase_sector_stm50(struct flashctx *flash, unsigned int block, unsigned int blocksize);
 
 /* en29lv640b.c */
 int probe_en29lv640b(struct flashctx *flash);

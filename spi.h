@@ -61,11 +61,6 @@
 #define JEDEC_WREN_OUTSIZE	0x01
 #define JEDEC_WREN_INSIZE	0x00
 
-/* Chip Erase 0x62 is supported by Atmel AT25F chips. */
-#define JEDEC_CE_62		0x62
-#define JEDEC_CE_62_OUTSIZE	0x01
-#define JEDEC_CE_62_INSIZE	0x00
-
 /* Write Disable */
 #define JEDEC_WRDI		0x04
 #define JEDEC_WRDI_OUTSIZE	0x01

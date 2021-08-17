@@ -38,7 +38,7 @@ typedef uint32_t chipsize_t; /* Able to store the number of bytes of any support
 struct romentry {
 	chipoff_t start;
 	chipoff_t end;
-	unsigned int included;
+	bool included;
 	char *name;
 	char *file;
 };
@@ -57,53 +57,20 @@ struct single_layout {
 
 struct layout_include_args {
 	char *name;
+	char *file;
 	struct layout_include_args *next;
 };
 
-struct flashctx;
-/**
- * Extract regions to current directory
- *
- * @flash: Information about flash chip to access
- * @return 0 if OK, non-zero on error
- */
-int extract_regions(struct flashctx *flash);
-
 struct flashrom_layout *get_global_layout(void);
+struct flashrom_flashctx;
+const struct flashrom_layout *get_layout(const struct flashrom_flashctx *const flashctx);
 
-int find_romentry(struct flashrom_layout *const l, char *name);
-int fill_romentry(struct romentry *entry, int n);
-int get_num_include_args(const struct flashrom_layout *const l);
+int get_region_range(struct flashrom_layout *const l, const char *name,
+		     unsigned int *start, unsigned int *len);
 int process_include_args(struct flashrom_layout *l, const struct layout_include_args *const args);
-int included_regions_overlap(void);
-int handle_partial_read(
-    struct flashctx *flash,
-    uint8_t *buf,
-    int (*read) (struct flashctx *flash, uint8_t *buf,
-                 unsigned int start, unsigned int len),
-    int write_to_file);
-    /* RETURN: the number of partitions that have beenpartial read.
-    *         ==0 means no partition is specified.
-    *         < 0 means writing file error. */
+const struct romentry *layout_next_included_region(const struct flashrom_layout *, chipoff_t);
+const struct romentry *layout_next_included(const struct flashrom_layout *, const struct romentry *);
+int included_regions_overlap(const struct flashrom_layout *const flashrom_layout);
+void prepare_layout_for_extraction(struct flashrom_flashctx *flash);
 
-/*
- * In case user specified sections to program (using the -i command line
- * option), prepare new contents such that only the required sections are
- * re-programmed.
- *
- * If no -i command line option was used - do nothing.
- *
- * All areas outside of sections included in -i command line options are set
- * to the same value as old contents (modulo lowest erase block size). This
- * would make sure that those areas remain unchanged.
- *
- * If flashrom was invoked for writing the chip, fill the sections to be
- * written from the user provided image file.
- *
- * If flashrom was invoked for erasing - leave the sections in question
- * untouched, they have been set to flash erase value already.
- */
-int build_new_image(const struct flashctx *flash, uint8_t *oldcontents,
-		      uint8_t *newcontents, int erase_mode);
-
-#endif /* __LAYOUT_H__ */
+#endif /* !__LAYOUT_H__ */

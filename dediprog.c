@@ -17,6 +17,7 @@
 
 #include "platform.h"
 
+#include <sys/types.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -487,7 +488,7 @@ static int dediprog_spi_bulk_read(struct flashctx *flash, uint8_t *buf, unsigned
 
 	/* Allocate bulk transfers. */
 	unsigned int i;
-	for (i = 0; i < min(DEDIPROG_ASYNC_TRANSFERS, count); ++i) {
+	for (i = 0; i < MIN(DEDIPROG_ASYNC_TRANSFERS, count); ++i) {
 		transfers[i] = libusb_alloc_transfer(0);
 		if (!transfers[i]) {
 			msg_perr("Allocating libusb transfer %i failed: %s!\n", i, libusb_error_name(ret));
@@ -673,7 +674,7 @@ static int dediprog_spi_write(struct flashctx *flash, const uint8_t *buf,
 		msg_pdbg("Slow write for partial block from 0x%x, length 0x%x\n",
 			 start, residue);
 		/* No idea about the real limit. Maybe 16 including command and address, maybe more. */
-		ret = spi_write_chunked(flash, (uint8_t *)buf, start, residue, 11);
+		ret = spi_write_chunked(flash, buf, start, residue, 11);
 		if (ret) {
 			dediprog_set_leds(LED_ERROR);
 			return ret;
@@ -692,7 +693,7 @@ static int dediprog_spi_write(struct flashctx *flash, const uint8_t *buf,
 	if (len) {
 		msg_pdbg("Slow write for partial block from 0x%x, length 0x%x\n",
 			 start, len);
-		ret = spi_write_chunked(flash, (uint8_t *)(buf + residue + bulklen),
+		ret = spi_write_chunked(flash, buf + residue + bulklen,
 				        start + residue + bulklen, len, 11);
 		if (ret) {
 			dediprog_set_leds(LED_ERROR);
@@ -723,11 +724,11 @@ static int dediprog_spi_send_command(const struct flashctx *flash,
 	int ret;
 
 	msg_pspew("%s, writecnt=%i, readcnt=%i\n", __func__, writecnt, readcnt);
-	if (writecnt > UINT16_MAX) {
+	if (writecnt > flash->mst->spi.max_data_write) {
 		msg_perr("Invalid writecnt=%i, aborting.\n", writecnt);
 		return 1;
 	}
-	if (readcnt > UINT16_MAX) {
+	if (readcnt > flash->mst->spi.max_data_read) {
 		msg_perr("Invalid readcnt=%i, aborting.\n", readcnt);
 		return 1;
 	}
@@ -863,7 +864,7 @@ static struct voltage_range voltage_ranges[NUM_VOLTAGE_RANGES];
 /* returns number of unique voltage ranges, or <0 to indicate failure */
 static int flash_supported_voltage_ranges(enum chipbustype bus)
 {
-	int i;
+	unsigned i;
 	int unique_ranges = 0;
 
 	/* clear array in case user calls this function multiple times */
@@ -907,16 +908,16 @@ static int flash_supported_voltage_ranges(enum chipbustype bus)
 	return unique_ranges;
 }
 
+static struct spi_master spi_master_dediprog;
 static int dediprog_set_spi_flash_voltage_auto(void)
 {
-	int i;
 	int spi_flash_ranges;
 
 	spi_flash_ranges = flash_supported_voltage_ranges(BUS_SPI);
 	if (spi_flash_ranges < 0)
 		return -1;
 
-	for (i = 0; i < ARRAY_SIZE(dediprog_supply_voltages); i++) {
+	for (unsigned i = 0; i < ARRAY_SIZE(dediprog_supply_voltages); i++) {
 		int j;
 		int v = dediprog_supply_voltages[i];	/* shorthand */
 
@@ -932,9 +933,11 @@ static int dediprog_set_spi_flash_voltage_auto(void)
 				}
 
 				clear_spi_id_cache();
-				// FIXME(quasisec): Passing NULL for the registered_master as we
-				// don't have something sensible in scope at this dispatch site.
-				if (probe_flash(NULL, 0, &dummy, 0) < 0) {
+				struct registered_master rmst = {
+					.buses_supported = BUS_SPI,
+					.spi = spi_master_dediprog,
+				};
+				if (probe_flash(&rmst, 0, &dummy, 0) < 0) {
 					/* No dice, try next voltage supported by Dediprog. */
 					break;
 				}
@@ -1030,6 +1033,32 @@ static int dediprog_standalone_mode(void)
 
 	return 0;
 }
+
+#if 0
+/* Something.
+ * Present in eng_detect_blink.log with firmware 3.1.8
+ * Always preceded by Command Receive Device String
+ */
+static int dediprog_command_b(void)
+{
+	int ret;
+	char buf[0x3];
+
+	ret = usb_control_msg(dediprog_handle, REQTYPE_OTHER_IN, 0x7, 0x0, 0xef00,
+			      buf, 0x3, DEFAULT_TIMEOUT);
+	if (ret < 0) {
+		msg_perr("Command B failed (%s)!\n", libusb_error_name(ret));
+		return 1;
+	}
+	if ((ret != 0x3) || (buf[0] != 0xff) || (buf[1] != 0xff) ||
+	    (buf[2] != 0xff)) {
+		msg_perr("Unexpected response to Command B!\n");
+		return 1;
+	}
+
+	return 0;
+}
+#endif
 
 static int set_target_flash(enum dediprog_target target)
 {
@@ -1379,13 +1408,14 @@ int dediprog_init(void)
 	if (dediprog_standalone_mode())
 		return 1;
 
-	if (dediprog_devicetype == DEV_SF100 && protocol() == PROTOCOL_V1)
+	if ((dediprog_devicetype == DEV_SF100) ||
+	    (dediprog_devicetype == DEV_SF600 && protocol() == PROTOCOL_V3))
 		spi_master_dediprog.features &= ~SPI_MASTER_NO_4BA_MODES;
 
-	if (protocol() == PROTOCOL_V2)
+	if (protocol() >= PROTOCOL_V2)
 		spi_master_dediprog.features |= SPI_MASTER_4BA;
 
-	if (register_spi_master(&spi_master_dediprog) || dediprog_set_leds(LED_NONE))
+	if (register_spi_master(&spi_master_dediprog, NULL) || dediprog_set_leds(LED_NONE))
 		return 1;
 
 	return 0;
