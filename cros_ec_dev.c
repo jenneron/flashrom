@@ -71,6 +71,28 @@ static const char *ec_type[] = {
 /*
  * @version: Command version number (often 0)
  * @command: Command to send (EC_CMD_...)
+ * @outdata: Outgoing data to EC
+ * @outsize: Outgoing length in bytes
+ * @indata: Where to put the incoming data from EC
+ * @insize: Incoming length in bytes (filled in by EC)
+ * @result: EC's response to the command (separate from communication failure)
+ */
+struct cros_ec_command {
+	uint32_t version;
+	uint32_t command;
+	const uint8_t *outdata;
+	uint32_t outsize;
+	uint8_t *indata;
+	uint32_t insize;
+	uint32_t result;
+};
+
+#define CROS_EC_DEV_IOC		':'
+#define CROS_EC_DEV_IOCXCMD	_IOWR(':', 0, struct cros_ec_command)
+
+/*
+ * @version: Command version number (often 0)
+ * @command: Command to send (EC_CMD_...)
  * @outsize: Outgoing length in bytes
  * @insize: Max number of bytes to accept from EC
  * @result: EC's response to the command (separate from communication failure)
@@ -90,6 +112,110 @@ struct cros_ec_command_v2 {
 				      struct cros_ec_command_v2)
 
 #define CROS_EC_DEV_RETRY	3
+
+/* ec device interface v1 (used with Chrome OS v3.18 and earlier) */
+
+/**
+ * Wait for a command to complete, then return the response
+ *
+ * This is called when we get an EAGAIN response from the EC. We need to
+ * send EC_CMD_GET_COMMS_STATUS commands until the EC indicates it is
+ * finished the command that we originally sent.
+ *
+ * returns 0 if command is successful, <0 to indicate timeout or error
+ */
+static int command_wait_for_response(void)
+{
+	struct ec_response_get_comms_status status;
+	struct cros_ec_command cmd;
+	int ret;
+	int i;
+
+	cmd.version = 0;
+	cmd.command = EC_CMD_GET_COMMS_STATUS;
+	cmd.outdata = NULL;
+	cmd.outsize = 0;
+	cmd.indata = (uint8_t *)&status;
+	cmd.insize = sizeof(status);
+
+	/* FIXME: magic delay until we fix the underlying problem (probably in
+	   the kernel driver) */
+	usleep(10 * 1000);
+	for (i = 1; i <= CROS_EC_COMMAND_RETRIES; i++) {
+		ret = ioctl(cros_ec_fd, CROS_EC_DEV_IOCXCMD, &cmd, sizeof(cmd));
+		if (ret < 0) {
+			msg_perr("%s(): CrOS EC command failed: %d, errno=%d\n",
+				 __func__, ret, errno);
+			ret = -EC_RES_ERROR;
+			break;
+		}
+
+		if (cmd.result) {
+			msg_perr("%s(): CrOS EC command failed: result=%d\n",
+				 __func__, cmd.result);
+			ret = -cmd.result;
+			break;
+		}
+
+		if (!(status.flags & EC_COMMS_STATUS_PROCESSING)) {
+			ret = -EC_RES_SUCCESS;
+			break;
+		}
+
+		usleep(1000);
+	}
+
+	return ret;
+}
+
+/*
+ * __cros_ec_command_dev - Issue command to CROS_EC device
+ *
+ * @command:	command code
+ * @outdata:	data to send to EC
+ * @outsize:	number of bytes in outbound payload
+ * @indata:	(unallocated) buffer to store data received from EC
+ * @insize:	number of bytes in inbound payload
+ *
+ * This uses the kernel Chrome OS EC driver to communicate with the EC.
+ *
+ * The outdata and indata buffers contain payload data (if any); command
+ * and response codes as well as checksum data are handled transparently by
+ * this function.
+ *
+ * Returns >=0 for success, or negative if other error.
+ */
+static int __cros_ec_command_dev(int command, int version,
+			   const void *outdata, int outsize,
+			   void *indata, int insize)
+{
+	struct cros_ec_command cmd;
+	int ret;
+
+	cmd.version = version;
+	cmd.command = command;
+	cmd.outdata = outdata;
+	cmd.outsize = outsize;
+	cmd.indata = indata;
+	cmd.insize = insize;
+	ret = ioctl(cros_ec_fd, CROS_EC_DEV_IOCXCMD, &cmd, sizeof(cmd));
+	if (ret < 0 && errno == EAGAIN) {
+		ret = command_wait_for_response();
+		cmd.result = 0;
+	}
+	if (ret < 0) {
+		msg_perr("%s(): Command 0x%02x failed: %d, errno=%d\n",
+			__func__, command, ret, errno);
+		return -EC_RES_ERROR;
+	}
+	if (cmd.result) {
+		msg_pdbg("%s(): Command 0x%02x returned result: %d\n",
+			 __func__, command, cmd.result);
+		return -cmd.result;
+	}
+
+	return ret;
+}
 
 /*
  * ec device interface v2
@@ -191,6 +317,36 @@ static int __cros_ec_command_dev_v2(int command, int version,
 }
 
 /*
+ * Attempt to communicate with kernel using old ioctl format.
+ * If it returns ENOTTY, assume that this kernel uses the new format.
+ */
+static int ec_dev_is_v2()
+{
+	struct ec_params_hello h_req = {
+		.in_data = 0xa0b0c0d0
+	};
+	struct ec_response_hello h_resp;
+	struct cros_ec_command s_cmd = { };
+	int r;
+
+	s_cmd.command = EC_CMD_HELLO;
+	s_cmd.result = 0xff;
+	s_cmd.outsize = sizeof(h_req);
+	s_cmd.outdata = (uint8_t *)&h_req;
+	s_cmd.insize = sizeof(h_resp);
+	s_cmd.indata = (uint8_t *)&h_resp;
+
+	r = ioctl(cros_ec_fd, CROS_EC_DEV_IOCXCMD, &s_cmd, sizeof(s_cmd));
+	if (r < 0 && errno == ENOTTY)
+		return 1;
+
+	return 0;
+}
+
+static int (*__cros_ec_command_dev_fn)(int command, int version,
+	const void *outdata, int outsize, void *indata, int insize);
+
+/*
  * cros_ec_command_dev - Issue command to CROS_EC device with retry
  *
  * @command:	command code
@@ -215,7 +371,7 @@ static int cros_ec_command_dev(int command, int version,
 	int try;
 
 	for (try = 0; try < CROS_EC_DEV_RETRY; try++) {
-		ret = __cros_ec_command_dev_v2(command, version, outdata,
+		ret = __cros_ec_command_dev_fn(command, version, outdata,
 					       outsize, indata, insize);
 		if (ret >= 0)
 			return ret;
@@ -398,6 +554,11 @@ int cros_ec_probe_dev(void)
 	cros_ec_fd = open(dev_path, O_RDWR);
 	if (cros_ec_fd < 0)
 		return cros_ec_fd;
+
+	if (ec_dev_is_v2())
+		__cros_ec_command_dev_fn = __cros_ec_command_dev_v2;
+	else
+		__cros_ec_command_dev_fn = __cros_ec_command_dev;
 
 	if (cros_ec_test(&cros_ec_dev_priv))
 		return 1;
