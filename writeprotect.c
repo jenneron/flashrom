@@ -1200,6 +1200,7 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 		case MACRONIX_MX25U6435E:
 			return &wp_w25;
 		case MACRONIX_MX25U12835E:
+		case MACRONIX_MX25L12805D: // Same ID as MX25L12833F
 			return &wp_w25q_large;
 		case MACRONIX_MX25L6405:
 		case MACRONIX_MX25L6495F:
@@ -1451,7 +1452,8 @@ static int w25q_large_range_to_status(const struct flashctx *flash,
 			 * Quad Enable (QE)
 			 */
 			if (flash->chip->manufacture_id != MACRONIX_ID ||
-			    flash->chip->model_id != MACRONIX_MX25U12835E)
+			    (flash->chip->model_id != MACRONIX_MX25U12835E &&
+			    flash->chip->model_id != MACRONIX_MX25L12805D))
 				status->tb = descrs[i].m.tb;
 
 			range_found = 1;
@@ -2215,7 +2217,9 @@ static int range_table(const struct flashctx *flash,
 			*descrs = mx25u6435e_ranges;
 			*num_entries = ARRAY_SIZE(mx25u6435e_ranges);
 			break;
-		case MACRONIX_MX25U12835E: {
+		case MACRONIX_MX25U12835E:
+		case MACRONIX_MX25L12805D: // Same ID as MX2512833F
+		{
 			uint8_t cr = mx25l_read_config_register(flash);
 			if (cr & MX25U12835E_TB) {	/* T/B == 1 */
 				*descrs = mx25u12835e_tb1_ranges;
