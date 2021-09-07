@@ -1459,6 +1459,10 @@ static const struct flashchip *flash_id_to_entry(uint32_t mfg_id, uint32_t model
 	const struct flashchip *chip;
 
 	for (chip = &flashchips[0]; chip->vendor; chip++) {
+		if(is_chipname_duplicate(chip)) {
+			continue;
+		}
+
 		if ((chip->manufacture_id == mfg_id) &&
 			(chip->model_id == model_id))
 			return chip;

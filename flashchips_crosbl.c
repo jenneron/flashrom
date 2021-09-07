@@ -35,5 +35,12 @@ bool is_chipname_duplicate(const struct flashchip *chip)
 	 * being unable to identify the flash on Atlas and Nocturne boards,
 	 * causing flashrom failures documented in b/168943314.
 	 */
-	return strcmp(chip->name, "GD25B128B/GD25Q128B") == 0;
+	if(!strcmp(chip->name, "GD25B128B/GD25Q128B")) return true;
+
+	/* The "MX25L12805D" entry stops flashrom from identifying other
+	 *  MX25L128... chips, block it. See: b/190574697.
+	 */
+	if(!strcmp(chip->name, "MX25L12805D")) return true;
+
+	return false;
 }
