@@ -120,6 +120,26 @@ int w25_status_to_range(const struct flashctx *flash,
 #define MASK_WP_AREA_LARGE (0x9C)
 #define MASK_WP2_AREA (0x01)
 
+static struct wp_range_descriptor mx25u6435e_ranges[] = {
+	{ .m = { .sec = X, .tb = 0 }, 0, {0, 0} },	/* none */
+	{ .m = { .sec = 0, .tb = 0 }, 0x1, {0x7f0000,   1 * 64 * 1024} },	/* block 127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x2, {0x7e0000,   2 * 64 * 1024} },	/* blocks 126-127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x3, {0x7c0000,   4 * 64 * 1024} },	/* blocks 124-127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x4, {0x780000,   8 * 64 * 1024} },	/* blocks 120-127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x5, {0x700000,  16 * 64 * 1024} },	/* blocks 112-127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x6, {0x600000,  32 * 64 * 1024} },	/* blocks 96-127 */
+	{ .m = { .sec = 0, .tb = 0 }, 0x7, {0x400000,  64 * 64 * 1024} },	/* blocks 64-127 */
+
+	{ .m = { .sec = 0, .tb = 1 }, 0x0, {0x000000,  64 * 64 * 1024} },	/* blocks 0-63 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x1, {0x000000,  96 * 64 * 1024} },	/* blocks 0-95 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x2, {0x000000, 112 * 64 * 1024} },	/* blocks 0-111 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x3, {0x000000, 120 * 64 * 1024} },	/* blocks 0-119 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x4, {0x000000, 124 * 64 * 1024} },	/* blocks 0-123 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x5, {0x000000, 126 * 64 * 1024} },	/* blocks 0-125 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x6, {0x000000, 127 * 64 * 1024} },	/* blocks 0-126 */
+	{ .m = { .sec = 0, .tb = 1 }, 0x7, {0x000000, 128 * 64 * 1024} },	/* blocks 0-127 */
+};
+
 static struct wp_range_descriptor w25q64_ranges[] = {
 	{ .m = { .sec = X, .tb = X }, 0, {0, 0} },	/* none */
 
@@ -324,10 +344,13 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 		switch(chip->model_id) {
 		case WINBOND_NEX_W25Q128_V_M:
 			return &wp_w25;
-		case WINBOND_NEX_W25Q64_W:
+		case WINBOND_NEX_W25Q64_V:
+                case WINBOND_NEX_W25Q64_W:
 		case WINBOND_NEX_W25Q128_DTR:
 		case WINBOND_NEX_W25Q128_V:
+		case WINBOND_NEX_W25Q128_W:
 			return &wp_w25q;
+		case WINBOND_NEX_W25Q256_V:
 		case WINBOND_NEX_W25Q256JV_M:
 			return &wp_w25q_large;
 		}
@@ -335,6 +358,12 @@ struct wp *get_wp_for_flashchip(const struct flashchip *chip) {
 	case EON_ID_NOPREFIX:
 		switch (chip->model_id) {
 		case EON_EN25QH128:
+			return &wp_w25;
+		}
+		break;
+	case MACRONIX_ID:
+		switch (chip->model_id) {
+		case MACRONIX_MX25U6435E:
 			return &wp_w25;
 		}
 		break;
@@ -1004,6 +1033,7 @@ static int range_table(const struct flashctx *flash,
 		break;
 	case WINBOND_NEX_ID:
 		switch(flash->chip->model_id) {
+		case WINBOND_NEX_W25Q64_V:
                 case WINBOND_NEX_W25Q64_W:
 			*descrs = w25q64_ranges;
 			*num_entries = ARRAY_SIZE(w25q64_ranges);
@@ -1011,6 +1041,7 @@ static int range_table(const struct flashctx *flash,
 		case WINBOND_NEX_W25Q128_DTR:
 		case WINBOND_NEX_W25Q128_V_M:
 		case WINBOND_NEX_W25Q128_V:
+		case WINBOND_NEX_W25Q128_W:
 			if (w25q_read_status_register_2(flash) & (1 << 6)) {
 				/* CMP == 1 */
 				*descrs = w25rq128_cmp1_ranges;
@@ -1021,6 +1052,7 @@ static int range_table(const struct flashctx *flash,
 				*num_entries = ARRAY_SIZE(w25rq128_cmp0_ranges);
 			}
 			break;
+		case WINBOND_NEX_W25Q256_V:
 		case WINBOND_NEX_W25Q256JV_M:
 			if (w25q_read_status_register_2(flash) & (1 << 6)) {
 				/* CMP == 1 */
@@ -1089,6 +1121,19 @@ static int range_table(const struct flashctx *flash,
 			msg_cerr("%s() %d: GigaDevice flash chip mismatch"
 				 " (0x%04x), aborting\n", __func__, __LINE__,
 				 flash->chip->model_id);
+			return -1;
+		}
+		break;
+	case MACRONIX_ID:
+		switch (flash->chip->model_id) {
+		case MACRONIX_MX25U6435E:
+			*descrs = mx25u6435e_ranges;
+			*num_entries = ARRAY_SIZE(mx25u6435e_ranges);
+			break;
+		default:
+			msg_cerr("%s():%d: MXIC flash chip mismatch (0x%04x)"
+			         ", aborting\n", __func__, __LINE__,
+			         flash->chip->model_id);
 			return -1;
 		}
 		break;
