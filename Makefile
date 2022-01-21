@@ -395,6 +395,9 @@ CONFIG_MSTARDDC_SPI ?= no
 # Disables LSPCON support until the i2c helper supports multiple systems.
 CONFIG_LSPCON_I2C_SPI ?= no
 
+# Disables MediaTek support until the i2c helper supports multiple systems.
+CONFIG_MEDIATEK_I2C_SPI ?= no
+
 # Disables REALTEK_MST support until the i2c helper supports multiple systems.
 CONFIG_REALTEK_MST_I2C_SPI ?= no
 
@@ -613,6 +616,11 @@ endif
 ifeq ($(CONFIG_LSPCON_I2C_SPI), yes)
 FEATURE_CFLAGS += -D'CONFIG_LSPCON_I2C_SPI=1'
 PROGRAMMER_OBJS += lspcon_i2c_spi.o
+endif
+
+ifeq ($(CONFIG_MEDIATEK_I2C_SPI), yes)
+FEATURE_FLAGS += -D'CONFIG_MEDIATEK_I2C_SPI=1'
+PROGRAMMER_OBJS += mediatek_i2c_spi.o
 endif
 
 ifeq ($(CONFIG_REALTEK_MST_I2C_SPI), yes)
