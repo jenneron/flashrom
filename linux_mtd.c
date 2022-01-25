@@ -505,7 +505,7 @@ static int mtd_wp_enable_writeprotect(const struct flashctx *flash, enum wp_mode
 	int ret = ioctl(fileno(data->dev_fp), MEMUNLOCK, &entire_chip);
 	if (ret < 0) {
 		msg_perr("%s: Failed to disable write-protection, MEMUNLOCK ioctl "
-			 "retuned %d, error: %s\n", ret, __func__, strerror(errno));
+			 "retuned %d, error: %s\n", __func__, ret, strerror(errno));
 		msg_perr("Did you disable WP#?\n");
 		return 1;
 	}
@@ -513,7 +513,7 @@ static int mtd_wp_enable_writeprotect(const struct flashctx *flash, enum wp_mode
 	ret = ioctl(fileno(data->dev_fp), MEMLOCK, &desired_range);
 	if (ret < 0) {
 		msg_perr("%s: Failed to enable write-protection, MEMLOCK ioctl "
-			 "retuned %d, error: %s\n", ret, __func__, strerror(errno));
+			 "retuned %d, error: %s\n", __func__, ret, strerror(errno));
 		return 1;
 	}
 
@@ -536,7 +536,7 @@ static int mtd_wp_disable_writeprotect(const struct flashctx *flash)
 	int ret = ioctl(fileno(data->dev_fp), MEMUNLOCK, &erase_info);
 	if (ret < 0) {
 		msg_perr("%s: Failed to disable write-protection, MEMUNLOCK ioctl "
-			 "retuned %d, error: %s\n", ret, __func__, strerror(errno));
+			 "retuned %d, error: %s\n", __func__, ret, strerror(errno));
 		msg_perr("Did you disable WP#?\n");
 		return 1;
 	}
