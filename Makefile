@@ -327,7 +327,7 @@ LOCK_OBJS = big_lock.o file_lock.o
 LIB_OBJS += $(LOCK_OBJS)
 FEATURE_CFLAGS += -D'USE_BIG_LOCK=1'
 LIB_OBJS += libflashrom.o layout.o flashrom.o udelay.o programmer.o programmer_table.o helpers.o ich_descriptors.o fmap.o
-LIB_OBJS += action_descriptor.o flashchips_crosbl.o
+LIB_OBJS += power.o action_descriptor.o flashchips_crosbl.o
 
 ###############################################################################
 # Frontend related stuff.

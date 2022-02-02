@@ -29,6 +29,7 @@
 #include "flash.h"
 #include "flashchips.h"
 #include "fmap.h"
+#include "power.h"
 #include "programmer.h"
 #include "writeprotect.h"
 
@@ -974,6 +975,10 @@ out:
 	if (!set_ignore_lock)
 		release_big_lock();
 #endif
+	if (restore_power_management()) {
+		msg_gerr("Unable to re-enable power management\n");
+		ret |= 1;
+	}
 	for (i = 0; i < chipcount; i++) {
 		flashrom_layout_release(flashes[i].default_layout);
 		free(flashes[i].chip);

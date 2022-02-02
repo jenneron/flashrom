@@ -372,6 +372,7 @@ install_headers([
 )
 
 ### CrOS Tree
+srcs += 'power.c'
 srcs += 'action_descriptor.c'
 srcs += 'flashchips_crosbl.c'
 
