@@ -29,6 +29,7 @@
 #include "flash.h"
 #include "flashchips.h"
 #include "fmap.h"
+#include "power.h"
 #include "programmer.h"
 #include "writeprotect.h"
 
@@ -653,8 +654,7 @@ int main(int argc, char *argv[])
 #endif
 
 	/*
-	 * FIXME: The following comment doesn't look relevent, it should
-	 * probably be deleted.
+	 * Let powerd know that we're updating firmware so machine stays awake.
 	 *
 	 * A bit of history behind this small block of code:
 	 * chromium-os:15025 - If broken_timer == 1, use busy loop instead of
@@ -662,10 +662,19 @@ int main(int argc, char *argv[])
 	 * involving reads, erases, and writes. This was mostly a problem on
 	 * old machines with poor DVFS implementations.
 	 *
+	 * chromium-os:18895 - Disabled power management to prevent system from
+	 * going to sleep while doing a destructive operation.
+	 *
 	 * chromium-os:19321 - Use OS timers for non-destructive operations to
 	 * avoid UI jank.
 	 *
+	 * chromium:400641 - Powerd is smarter now, so instead of stopping it
+	 * manually we'll use a file lock so it knows not to put the machine
+	 * to sleep or do other things that can interfere.
+	 *
 	 */
+	if (write_it || erase_it)
+		disable_power_management();
 
 	/* FIXME: Delay calibration should happen in programmer code. */
 	myusec_calibrate_delay();
@@ -989,6 +998,10 @@ out:
 	if (!set_ignore_lock)
 		release_big_lock();
 #endif
+	if (restore_power_management()) {
+		msg_gerr("Unable to re-enable power management\n");
+		ret |= 1;
+	}
 	for (i = 0; i < chipcount; i++) {
 		flashrom_layout_release(flashes[i].default_layout);
 		free(flashes[i].chip);
