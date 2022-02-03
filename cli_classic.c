@@ -652,21 +652,6 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	/*
-	 * FIXME: The following comment doesn't look relevent, it should
-	 * probably be deleted.
-	 *
-	 * A bit of history behind this small block of code:
-	 * chromium-os:15025 - If broken_timer == 1, use busy loop instead of
-	 * OS timers to avoid excessive usleep overhead during "long" operations
-	 * involving reads, erases, and writes. This was mostly a problem on
-	 * old machines with poor DVFS implementations.
-	 *
-	 * chromium-os:19321 - Use OS timers for non-destructive operations to
-	 * avoid UI jank.
-	 *
-	 */
-
 	/* FIXME: Delay calibration should happen in programmer code. */
 	myusec_calibrate_delay();
 

@@ -41,6 +41,7 @@
 #include "programmer.h"
 #include "spi.h"
 #include "chipdrivers.h"
+#include "power.h"
 
 const char flashrom_version[] = FLASHROM_VERSION;
 const char *chip_to_probe = NULL;
@@ -1944,6 +1945,11 @@ int prepare_flash_access(struct flashctx *const flash,
 		return 1;
 	}
 
+	/* FIXME(b/207787495): replace this with locking in futility. */
+	/* Let powerd know that we're updating firmware so machine stays awake. */
+	if (write_it || erase_it)
+		disable_power_management();
+
 	/*
 	 * FIXME(b/171093672): Failures to map_flash() on some DUT's due to unknown cause,
 	 * can be repro'ed with upstream on Volteer.
@@ -2001,6 +2007,11 @@ void finalize_flash_access(struct flashctx *const flash)
 {
 	deregister_chip_restore(flash);
 	unmap_flash(flash);
+
+	/* FIXME(b/207787495): replace this with locking in futility. */
+	if (restore_power_management()) {
+		msg_gerr("Unable to re-enable power management\n");
+	}
 }
 
 static int setup_curcontents(struct flashctx *flashctx, void *curcontents,
