@@ -212,6 +212,12 @@ size_t __wrap_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *fp)
 	return nmemb;
 }
 
+int __wrap_fprintf(int fd, const char *fmt, ...)
+{
+       LOG_ME;
+       return 0;
+}
+
 int __wrap_fflush(FILE *fp)
 {
 	LOG_ME;
@@ -255,6 +261,7 @@ int __wrap_ferror(FILE *fp)
 	/* LOG_ME; */
 	return 0;
 }
+
 void __wrap_clearerr(FILE *fp)
 {
 	/* LOG_ME; */
