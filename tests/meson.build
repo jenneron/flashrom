@@ -43,6 +43,7 @@ mocks = [
   '-Wl,--wrap=fopen64',
   '-Wl,--wrap=fdopen',
   '-Wl,--wrap=fwrite',
+  '-Wl,--wrap=fprintf',
   '-Wl,--wrap=fflush',
   '-Wl,--wrap=stat',
   '-Wl,--wrap=stat64',
