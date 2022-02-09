@@ -572,6 +572,7 @@ static int w25q_large_range_to_status(const struct flashctx *flash,
 			status->bp1 = descrs[i].bp >> 1;
 			status->bp2 = descrs[i].bp >> 2;
 			status->bp3 = descrs[i].bp >> 3;
+			status->tb = (descrs[i].m.tb == 1) ? 1 : 0; // Map 'X' to 0
 
 			range_found = 1;
 			break;
