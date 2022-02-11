@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include "big_lock.h"
 #include "flash.h"
 #include "fmap.h"
 #include "programmer.h"
@@ -33,6 +34,8 @@
 #include "ich_descriptors.h"
 #include "libflashrom.h"
 
+#define LOCK_TIMEOUT_SECS 180
+
 /**
  * @defgroup flashrom-general General
  * @{
@@ -40,6 +43,13 @@
 
 /** Pointer to log callback function. */
 static flashrom_log_callback *global_log_callback = NULL;
+
+#ifndef USE_BIG_LOCK
+#define USE_BIG_LOCK 0
+#endif
+
+/** Big lock acquisition status. */
+static bool big_lock_acquired = false;
 
 /**
  * @brief Initialize libflashrom.
@@ -257,6 +267,12 @@ int flashrom_programmer_init(struct flashrom_programmer **const flashprog,
 			     const char *const prog_name, const char *const prog_param)
 {
 	unsigned prog;
+	int ret;
+#if CONFIG_DUMMY == 1
+	const struct programmer_entry *dummy_programmer = &programmer_dummy;
+#else
+	const struct programmer_entry *dummy_programmer = NULL;
+#endif
 
 	for (prog = 0; prog < programmer_table_size; prog++) {
 		if (strcmp(prog_name, programmer_table[prog]->name) == 0)
@@ -267,7 +283,28 @@ int flashrom_programmer_init(struct flashrom_programmer **const flashprog,
 		list_programmers_linebreak(0, 80, 0);
 		return 1;
 	}
-	return programmer_init(programmer_table[prog], prog_param);
+
+	/* Only acquire the big lock for non-dummy programmer. */
+	if (USE_BIG_LOCK && programmer_table[prog] != dummy_programmer) {
+		/* Get big lock before doing any work that touches hardware. */
+		msg_gdbg("Acquiring lock (timeout=%d sec)...\n", LOCK_TIMEOUT_SECS);
+		if (acquire_big_lock(LOCK_TIMEOUT_SECS) < 0) {
+			msg_gerr("Could not acquire lock.\n");
+			return 1;
+		}
+		big_lock_acquired = true;
+		msg_gdbg("Lock acquired.\n");
+	}
+
+	ret = programmer_init(programmer_table[prog], prog_param);
+
+	/* Release lock if initialization is not succseeful. */
+	if (USE_BIG_LOCK && ret != 0 && big_lock_acquired) {
+		release_big_lock();
+		big_lock_acquired = false;
+	}
+
+	return ret;
 }
 
 /**
@@ -278,7 +315,14 @@ int flashrom_programmer_init(struct flashrom_programmer **const flashprog,
  */
 int flashrom_programmer_shutdown(struct flashrom_programmer *const flashprog)
 {
-	return programmer_shutdown();
+	int ret = programmer_shutdown();
+
+	if (USE_BIG_LOCK && big_lock_acquired) {
+		release_big_lock();
+		big_lock_acquired = false;
+	}
+
+	return ret;
 }
 
 /* TODO: flashrom_programmer_capabilities()? */
