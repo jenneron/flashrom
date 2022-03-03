@@ -29,6 +29,9 @@
 #include "action_descriptor.h"
 #include "chipdrivers.h"
 
+#define DEFAULT_FAST_HWSEQ_OP_TIMEOUT_US	1000000
+#define DEFAULT_SLOW_HWSEQ_OP_TIMEOUT_US	5000000
+
 /* Apollo Lake */
 #define APL_REG_FREG12		0xe0	/* 32 Bytes Flash Region 12 */
 
@@ -1424,6 +1427,7 @@ static int ich_hwseq_wait_for_cycle_complete(unsigned int timeout,
 		programmer_delay(8);
 	}
 	REGWRITE16(ICH9_REG_HSFS, REGREAD16(ICH9_REG_HSFS));
+
 	if (!timeout) {
 		addr = REGREAD32(ICH9_REG_FADDR) & hwseq_data.addr_mask;
 		msg_perr("Timeout error between offset 0x%08x and "
@@ -1443,6 +1447,7 @@ static int ich_hwseq_wait_for_cycle_complete(unsigned int timeout,
 		prettyprint_ich9_reg_hsfc(REGREAD16(ICH9_REG_HSFC), ich_gen);
 		return 1;
 	}
+
 	return 0;
 }
 
@@ -1483,8 +1488,8 @@ static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_g
 	hsfsc |= ((len - 1) << HSFSC_FDBC_OFF) & HSFSC_FDBC;
 	hsfsc |= (0x6 << HSFSC_FCYCLE_OFF) | HSFSC_FGO;
 	REGWRITE32(ICH9_REG_HSFS, hsfsc);
-	/* poll for 100ms */
-	if (ich_hwseq_wait_for_cycle_complete(100 * 1000, len, ich_gen)) {
+
+	if (ich_hwseq_wait_for_cycle_complete(DEFAULT_FAST_HWSEQ_OP_TIMEOUT_US, len, ich_gen)) {
 		msg_perr("Timed out waiting for RDID to complete.\n");
 		return 0;
 	}
@@ -1529,7 +1534,7 @@ static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_g
 static uint8_t ich_hwseq_read_status(const struct flashctx *flash)
 {
 	uint32_t hsfc;
-	uint32_t timeout = 5000 * 1000;
+	uint32_t timeout = DEFAULT_SLOW_HWSEQ_OP_TIMEOUT_US;
 	int len = 1;
 	uint8_t buf;
 
@@ -1560,7 +1565,7 @@ static uint8_t ich_hwseq_read_status(const struct flashctx *flash)
 static int ich_hwseq_write_status(const struct flashctx *flash, int status)
 {
 	uint32_t hsfc;
-	uint32_t timeout = 5000 * 1000;
+	uint32_t timeout = DEFAULT_SLOW_HWSEQ_OP_TIMEOUT_US;
 	int len = 1;
 	uint8_t buf = status;
 
@@ -1654,7 +1659,7 @@ static int ich_hwseq_block_erase(struct flashctx *flash, unsigned int addr,
 {
 	uint32_t erase_block;
 	uint16_t hsfc;
-	uint32_t timeout = 5000 * 1000; /* 5 s for max 64 kB */
+	uint32_t timeout = DEFAULT_SLOW_HWSEQ_OP_TIMEOUT_US;
 	int result = 0;
 
 	if (is_dry_run())
@@ -1712,7 +1717,7 @@ static int ich_hwseq_read(struct flashctx *flash, uint8_t *buf,
 			  unsigned int addr, unsigned int len)
 {
 	uint16_t hsfc;
-	uint16_t timeout = 100 * 60;
+	uint32_t timeout = DEFAULT_FAST_HWSEQ_OP_TIMEOUT_US;
 	uint8_t block_len;
 	int result = 0, chunk_status = 0;
 
@@ -1767,7 +1772,7 @@ static int ich_hwseq_read(struct flashctx *flash, uint8_t *buf,
 static int ich_hwseq_write(struct flashctx *flash, const uint8_t *buf, unsigned int addr, unsigned int len)
 {
 	uint16_t hsfc;
-	uint16_t timeout = 100 * 60;
+	uint32_t timeout = DEFAULT_FAST_HWSEQ_OP_TIMEOUT_US;
 	uint8_t block_len;
 	int result = 0;
 
