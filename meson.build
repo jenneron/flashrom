@@ -127,6 +127,7 @@ srcs += files(
   'file_lock.c',
   'dep_writeprotect.c',
   'dep_wp_statusreg.c',
+  'opaque_statusreg.c'
 )
 cargs += '-DCONFIG_CROS_ALIAS=1'
 cargs += '-DUSE_BIG_LOCK=1'

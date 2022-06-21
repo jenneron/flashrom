@@ -61,6 +61,9 @@ int spi_exit_4ba(struct flashctx *flash);
 int spi_set_extended_address(struct flashctx *, uint8_t addr_high);
 
 
+/* opaque_statusreg.c */
+int opaque_disable_blockprotect(struct flashctx *flash);
+
 /* spi25_statusreg.c */
 int spi_read_register(const struct flashctx *flash, enum flash_reg reg, uint8_t *value);
 int spi_write_register(const struct flashctx *flash, enum flash_reg reg, uint8_t value);

@@ -379,7 +379,7 @@ CHIP_OBJS = jedec.o stm50.o w39.o w29ee011.o \
 	sst28sf040.o 82802ab.o \
 	sst49lfxxxc.o sst_fwhub.o edi.o flashchips.o spi.o spi25.o spi25_statusreg.o \
 	spi95.o opaque.o sfdp.o en29lv640b.o at45db.o dep_writeprotect.o s25f.o \
-	dep_wp_statusreg.o writeprotect.o writeprotect_ranges.o
+	dep_wp_statusreg.o writeprotect.o writeprotect_ranges.o opaque_statusreg.o
 
 ###############################################################################
 # Library code.

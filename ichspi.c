@@ -1629,6 +1629,8 @@ static int ich_hwseq_get_flash_id(struct flashctx *flash, enum ich_chipset ich_g
 		/* support writeprotect. */
 		flash->chip->reg_bits = entry->reg_bits;
 		flash->chip->decode_range = entry->decode_range;
+		/* FIXME(b/236660711): remove unlock funciton */
+		flash->chip->unlock = &opaque_disable_blockprotect;
 	}
 
 	return 1;
