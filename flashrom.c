@@ -457,8 +457,14 @@ static int read_checked_access(struct flashctx *flash,
 		if (chk_acc == SPI_ACCESS_DENIED)
 			continue;
 
-		*failcount = compare_range(cmpbuf + i, readbuf + i, start + i, chunksize);
-		if (*failcount > 0)
+		/*
+		 * FIXME: compare_range() does not return the number of failing
+		 * bytes, it returns -1 if any bytes fail. `failcount` needs to
+		 * be deleted and replaced with an accurately named variable.
+		 */
+		*failcount = compare_range(cmpbuf + i, readbuf + i, start + i,
+				chunksize);
+		if (*failcount)
 			break;
 	}
 
@@ -494,6 +500,12 @@ int verify_range(struct flashctx *flash, const uint8_t *cmpbuf, unsigned int sta
 		msg_gerr("Could not allocate memory!\n");
 		return -1;
 	}
+
+	/*
+	 * FIXME: compare_range() does not return the number of failing
+	 * bytes, it returns -1 if any bytes fail. `failcount` needs to
+	 * be deleted and replaced with an accurately named variable.
+	 */
 	int ret = 0, failcount = 0;
 
 	msg_gdbg("%#06x..%#06x ", start, start + len -1);
